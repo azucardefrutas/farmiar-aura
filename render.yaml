@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: farmear-aura-api
+    runtime: node
+    plan: free
+    region: virginia
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand: npm ci --include=dev && npm run build --workspace backend
+    startCommand: npm run start --workspace backend
+    healthCheckPath: /health
+    buildFilter:
+      paths:
+        - backend/**
+        - package.json
+        - package-lock.json
+        - render.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        value: https://farmear-aura-azucardefrutas-projects.vercel.app
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: SUPABASE_URL
+        value: https://ioelbxhahahjcpmhkotz.supabase.co
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: ADMIN_JWT_SECRET
+        generateValue: true

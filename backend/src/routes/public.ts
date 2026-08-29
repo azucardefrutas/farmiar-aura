@@ -1,0 +1,115 @@
+import { randomUUID } from 'node:crypto'
+import { Router } from 'express'
+import multer from 'multer'
+import { rateLimit } from 'express-rate-limit'
+import type { SupabaseAdmin } from '../lib/supabase.js'
+import { requireVoter } from '../middleware/auth.js'
+import { registrationSchema, voteSchema } from '../schemas.js'
+import { getTournamentSnapshot } from '../services/tournament.js'
+
+const acceptedImages = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { files: 1, fileSize: 3 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    if (!acceptedImages.has(file.mimetype)) {
+      callback(new Error('La foto debe ser JPG, PNG o WebP.'))
+      return
+    }
+    callback(null, true)
+  },
+})
+
+const voteLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 6,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos de voto. Espera un minuto.' },
+})
+
+const registrationLimiter = rateLimit({
+  windowMs: 10 * 60_000,
+  limit: 3,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos de registro. Intenta más tarde.' },
+})
+
+function extensionFor(mime: string) {
+  return mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg'
+}
+
+async function optionalVoterId(supabase: SupabaseAdmin, authorization?: string) {
+  const [scheme, token] = authorization?.split(' ') ?? []
+  if (scheme !== 'Bearer' || !token) return undefined
+  const { data } = await supabase.auth.getUser(token)
+  return data.user?.id
+}
+
+export function createPublicRouter(supabase: SupabaseAdmin) {
+  const router = Router()
+
+  router.get('/tournament', async (req, res, next) => {
+    try {
+      const voterId = await optionalVoterId(supabase, req.headers.authorization)
+      res.json(await getTournamentSnapshot(supabase, voterId))
+    } catch (error) { next(error) }
+  })
+
+  router.post('/votes', voteLimiter, requireVoter(supabase), async (req, res, next) => {
+    try {
+      const input = voteSchema.parse(req.body)
+      const { data, error } = await supabase.rpc('cast_vote', {
+        p_match_id: input.matchId,
+        p_contestant_id: input.contestantId,
+        p_voter_id: req.voter!.id,
+      })
+      if (error?.code === '23505') return res.status(409).json({ error: 'Ya votaste en esta batalla.' })
+      if (error) return res.status(400).json({ error: error.message })
+      return res.status(201).json({ success: true, score: data, message: 'Tu Aura quedó registrada.' })
+    } catch (error) { next(error) }
+  })
+
+  router.post('/registrations', registrationLimiter, requireVoter(supabase), upload.single('foto'), async (req, res, next) => {
+    try {
+      const input = registrationSchema.parse(req.body)
+      const { data: tournament, error: tournamentError } = await supabase.from('tournaments').select('id,status').eq('slug', 'batallas-de-aura').single()
+      if (tournamentError) throw tournamentError
+      if (tournament.status !== 'registration') return res.status(409).json({ error: 'El registro de participantes está cerrado.' })
+
+      const registrationId = randomUUID()
+      let photoPath: string | null = null
+      let photoUrl: string | null = null
+      if (req.file) {
+        photoPath = `${tournament.id}/${registrationId}.${extensionFor(req.file.mimetype)}`
+        const uploaded = await supabase.storage.from('participant-photos').upload(photoPath, req.file.buffer, {
+          contentType: req.file.mimetype, cacheControl: '31536000', upsert: false,
+        })
+        if (uploaded.error) throw uploaded.error
+        photoUrl = supabase.storage.from('participant-photos').getPublicUrl(photoPath).data.publicUrl
+      }
+
+      const { error } = await supabase.from('participant_registrations').insert({
+        id: registrationId,
+        tournament_id: tournament.id,
+        submitter_id: req.voter!.id,
+        nombre: input.nombre,
+        apellidos: input.apellidos,
+        carrera: input.carrera,
+        grupo: input.grupo,
+        alias: input.alias,
+        instagram: input.instagram,
+        foto_url: photoUrl,
+      })
+      if (error) {
+        if (photoPath) await supabase.storage.from('participant-photos').remove([photoPath])
+        if (error.code === '23505') return res.status(409).json({ error: 'Ya enviaste una solicitud para este torneo.' })
+        throw error
+      }
+      return res.status(201).json({ success: true, registrationId, message: 'Solicitud enviada. El equipo la revisará antes de publicarla.' })
+    } catch (error) { next(error) }
+  })
+
+  return router
+}
