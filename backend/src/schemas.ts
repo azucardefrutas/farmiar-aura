@@ -44,6 +44,17 @@ export const tournamentSettingsSchema = z.object({
   auraPerVote: z.coerce.number().int().min(10).max(1000),
 }).strict()
 
+export const tournamentCallSchema = tournamentSettingsSchema.extend({
+  name: cleanText(3, 100),
+  format: z.enum(['single_elimination', 'free_battles']),
+}).strict()
+
+export const freeMatchSchema = z.object({
+  contestantAId: uuidSchema,
+  contestantBId: uuidSchema,
+  durationSeconds: z.coerce.number().int().min(30).max(600),
+}).strict().refine((value) => value.contestantAId !== value.contestantBId, 'Selecciona dos participantes distintos')
+
 export const matchActionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('start') }),
   z.object({ action: z.literal('pause') }),

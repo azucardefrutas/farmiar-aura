@@ -1,6 +1,8 @@
 export type TournamentStatus = 'draft' | 'registration' | 'ready' | 'live' | 'finished' | 'archived'
 export type MatchStatus = 'scheduled' | 'live' | 'paused' | 'finished' | 'cancelled'
-export type MatchType = 'knockout' | 'third_place' | 'bye'
+export type MatchType = 'knockout' | 'third_place' | 'bye' | 'exhibition'
+export type TournamentFormat = 'single_elimination' | 'free_battles'
+export interface TournamentCall { id: string; name: string; status: TournamentStatus; format: TournamentFormat; isCurrent: boolean }
 
 export interface Contestant {
   id: string
@@ -16,6 +18,8 @@ export interface AuraMatch {
   roundNumber: number
   position: number
   matchType: MatchType
+  isReplay: boolean
+  replayOfId: string | null
   contestantA: Contestant | null
   contestantB: Contestant | null
   status: MatchStatus
@@ -39,12 +43,15 @@ export interface Round {
 }
 
 export interface TournamentSnapshot {
+  serverTime: string
   tournament: {
     id: string
     name: string
     slug: string
     status: TournamentStatus
     updatedAt: string
+    format: TournamentFormat
+    isCurrent: boolean
     rules: { durationSeconds: number; auraPerVote: number }
   }
   contestants: Contestant[]
@@ -79,6 +86,7 @@ export interface AdminSession {
 }
 
 export interface AdminDashboard extends TournamentSnapshot {
+  calls: TournamentCall[]
   registrations: Registration[]
   auditLogs: Array<{ id: number; action: string; entity_type: string; creado_en: string }>
   collaborators: Array<{ username: string; role: 'admin' | 'collaborator'; active: boolean; createdAt: string }>

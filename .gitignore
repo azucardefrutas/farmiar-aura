@@ -9,3 +9,4 @@ coverage/
 Thumbs.db
 .playwright-cli/
 output/
+supabase/.temp/

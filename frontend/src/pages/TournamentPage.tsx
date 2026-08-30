@@ -6,17 +6,18 @@ import { subscribeToTournament } from '../lib/realtime'
 import type { TournamentSnapshot } from '../types'
 import { BattleContestant } from '../components/BattleContestant'
 import { Countdown } from '../components/Countdown'
+import { RecentBattleResult } from '../components/RecentBattleResult'
 import { ScoreRail } from '../components/ScoreRail'
 import { PublicNavigation } from '../components/PublicNavigation'
 import { TournamentBracket } from '../components/TournamentBracket'
 import { StandingsTable } from '../components/StandingsTable'
+import { SkipVote } from '../components/SkipVote'
+import { useBattleVote } from '../lib/useBattleVote'
 
 export function TournamentPage() {
   const [snapshot, setSnapshot] = useState<TournamentSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  const [busyContestant, setBusyContestant] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -31,25 +32,12 @@ export function TournamentPage() {
   useEffect(() => { void load() }, [load])
   useEffect(() => {
     if (!snapshot) return
-    return subscribeToTournament(snapshot.tournament.id, snapshot.activeMatch?.id, () => void load())
+    return subscribeToTournament(snapshot.tournament.id, snapshot.activeMatch?.id, () => load())
   }, [snapshot?.tournament.id, snapshot?.activeMatch?.id, load])
 
-  async function vote(contestantId: string) {
-    if (!snapshot?.activeMatch) return
-    setBusyContestant(contestantId)
-    try {
-      const result = await api.vote(snapshot.activeMatch.id, contestantId)
-      setNotice(result.message)
-      await load()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'No fue posible registrar tu voto.')
-    } finally { setBusyContestant(null) }
-  }
-
   const match = snapshot?.activeMatch
+  const voting = useBattleVote(snapshot, load)
   const auraPerVote = snapshot?.tournament.rules.auraPerVote ?? 100
-  const hasVoted = Boolean(match && snapshot?.viewerVote?.matchId === match.id)
-  const isLive = match?.status === 'live'
 
   return (
     <div className="public-page min-h-dvh bg-arena text-primary">
@@ -64,16 +52,18 @@ export function TournamentPage() {
               {match && <span className="text-xs font-bold uppercase tracking-[.2em] text-tertiary">Ronda {match.roundNumber} · Batalla {match.position}</span>}
             </div>
             <h1 className="mt-4 max-w-3xl font-display text-3xl font-extrabold leading-[1.04] tracking-[-.04em] text-primary sm:text-5xl">{match ? 'La batalla del momento' : 'La arena está por abrir'}</h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-secondary">Un voto por batalla. Cada voto confirmado vale {auraPerVote} Aura y el ganador avanza automáticamente.</p>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-secondary">Un voto por batalla. Cada voto confirmado vale {auraPerVote} Aura. {snapshot?.tournament.format === 'free_battles' ? 'Las victorias suman a la clasificación.' : 'El ganador avanza automáticamente.'}</p>
           </div>
-          {match && <div className="timer-panel"><span className="text-xs font-bold uppercase tracking-[.2em] text-tertiary">Tiempo restante</span><Countdown endsAt={match.endsAt} pausedSeconds={match.remainingSeconds} status={match.status} onComplete={() => void load()} /></div>}
+          {match && <div className="timer-panel"><span className="text-xs font-bold uppercase tracking-[.2em] text-tertiary">Tiempo restante</span><Countdown endsAt={match.endsAt} pausedSeconds={match.remainingSeconds} status={match.status} durationSeconds={match.durationSeconds} serverTime={snapshot?.serverTime} onComplete={() => void load()} /></div>}
         </section>
 
         <div aria-live="polite" className="mb-5 space-y-3">
-          {notice && <p className="notice-success">{notice}</p>}
+          {voting.message && <p className="notice-success">{voting.message}</p>}
+          {voting.error && <p role="alert" className="notice-error">{voting.error}</p>}
           {error && <p role="alert" className="notice-error">{error} <button type="button" className="underline" onClick={() => void load()}>Reintentar</button></p>}
         </div>
 
+        {snapshot && <RecentBattleResult rounds={snapshot.rounds} />}
         {loading ? (
           <div className="grid gap-5 md:grid-cols-2" aria-label="Cargando batalla"><div className="battle-skeleton" /><div className="battle-skeleton" /></div>
         ) : match?.contestantA && match.contestantB ? (
@@ -83,10 +73,11 @@ export function TournamentPage() {
               <div className="mt-3 flex justify-between text-xs font-bold uppercase tracking-[.16em] text-tertiary"><span>{match.contestantA.name}</span><span>{match.totalVotes} votos</span><span>{match.contestantB.name}</span></div>
             </div>
             <div className="relative grid gap-5 md:grid-cols-2">
-              <BattleContestant contestant={match.contestantA} aura={match.auraA} votes={match.votesA} auraPerVote={auraPerVote} side="amber" canVote={isLive && !hasVoted} selected={snapshot?.viewerVote?.contestantId === match.contestantA.id} busy={busyContestant === match.contestantA.id} onVote={() => void vote(match.contestantA!.id)} />
+              <BattleContestant contestant={match.contestantA} aura={match.auraA} votes={match.votesA} auraPerVote={auraPerVote} side="amber" canVote={voting.canVote} selected={snapshot?.viewerVote?.contestantId === match.contestantA.id} busy={voting.busy === match.contestantA.id} onVote={() => void voting.vote(match.contestantA!.id)} readOnly={voting.omitted} />
               <div className="versus-mark" aria-hidden="true">VS</div>
-              <BattleContestant contestant={match.contestantB} aura={match.auraB} votes={match.votesB} auraPerVote={auraPerVote} side="indigo" canVote={isLive && !hasVoted} selected={snapshot?.viewerVote?.contestantId === match.contestantB.id} busy={busyContestant === match.contestantB.id} onVote={() => void vote(match.contestantB!.id)} />
+              <BattleContestant contestant={match.contestantB} aura={match.auraB} votes={match.votesB} auraPerVote={auraPerVote} side="indigo" canVote={voting.canVote} selected={snapshot?.viewerVote?.contestantId === match.contestantB.id} busy={voting.busy === match.contestantB.id} onVote={() => void voting.vote(match.contestantB!.id)} readOnly={voting.omitted} />
             </div>
+            {match.status === 'live' && !voting.hasVoted && <SkipVote omitted={voting.omitted} busy={Boolean(voting.busy)} onClick={voting.omit} />}
           </section>
         ) : (
           <section className="empty-arena">
@@ -104,7 +95,7 @@ export function TournamentPage() {
               <div className="metric-line"><Shield /><span><strong>{snapshot.summary.votes}</strong> votos confirmados</span></div>
               <div className="metric-line"><Trophy /><span><strong>{snapshot.summary.totalAura.toLocaleString('es-MX')}</strong> Aura generada</span></div>
             </div>
-            <section id="llave" className="mt-10 scroll-mt-8"><div className="section-heading"><div><p className="eyebrow">Eliminación directa</p><h2 id="tournament-summary">Llave del torneo</h2></div></div><TournamentBracket rounds={snapshot.rounds} /></section>
+            <section id="llave" className="mt-10 scroll-mt-8"><div className="section-heading"><div><p className="eyebrow">{snapshot.tournament.format === 'free_battles' ? 'Batallas libres' : 'Eliminación directa'}</p><h2 id="tournament-summary">Llave del torneo</h2></div></div><TournamentBracket rounds={snapshot.rounds} /></section>
             {snapshot.standings.length > 0 && <section id="posiciones" className="mt-10 scroll-mt-8"><div className="section-heading"><div><p className="eyebrow">Clasificación</p><h2>Tabla de posiciones</h2></div></div><StandingsTable standings={snapshot.standings} placements={snapshot.placements} /></section>}
           </section>
         )}

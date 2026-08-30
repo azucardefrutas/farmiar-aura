@@ -29,12 +29,13 @@ export function createApp(config: AppConfig) {
       if (!origin || allowedOrigins.has(origin)) return callback(null, true)
       return callback(new Error('Origen no permitido'))
     },
-    methods: ['GET', 'POST', 'PATCH'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     maxAge: 86400,
   }))
   app.use(express.json({ limit: '24kb', strict: true }))
-  app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }))
+  // Coarse IP ceiling accommodates campus Wi-Fi; authenticated routes also limit each user.
+  app.use(rateLimit({ windowMs: 60_000, limit: 6000, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Demasiadas peticiones desde esta red. Espera un minuto.' } }))
 
   app.get('/health', (_req, res) => res.json({ ok: true }))
   app.use('/api/v1', createPublicRouter(supabase))

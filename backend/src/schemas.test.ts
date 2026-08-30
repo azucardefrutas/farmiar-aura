@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { bracketSchema, registrationSchema, tournamentSettingsSchema, voteSchema } from './schemas.js'
+import { bracketSchema, freeMatchSchema, registrationSchema, tournamentCallSchema, tournamentSettingsSchema, voteSchema } from './schemas.js'
 
 describe('request schemas', () => {
+  it('validates tournament modes and rejects duplicate opponents', () => {
+    expect(tournamentCallSchema.parse({ name: 'Edición 2', format: 'free_battles', durationSeconds: 90, auraPerVote: 100 }).format).toBe('free_battles')
+    expect(() => tournamentCallSchema.parse({ name: 'Edición 2', format: 'anything', durationSeconds: 90, auraPerVote: 100 })).toThrow()
+    const id = '7d98c0d2-655d-47ca-b499-4292ea6bf1a8'
+    expect(() => freeMatchSchema.parse({ contestantAId: id, contestantBId: id, durationSeconds: 90 })).toThrow()
+  })
   it('rejects extra vote fields and malformed identifiers', () => {
     expect(() => voteSchema.parse({ matchId: 'x', contestantId: 'y', points: 999999 })).toThrow()
   })

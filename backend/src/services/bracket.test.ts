@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { buildBracketSlots, nextPowerOfTwo, seedOrder } from './bracket.js'
 
 describe('bracket seeding', () => {
+  it.each(Array.from({ length: 31 }, (_, index) => index + 2))('keeps every entrant exactly once for %i people', (count) => {
+    const entrants = Array.from({ length: count }, (_, i) => String(i))
+    const slots = buildBracketSlots(entrants, () => 0)
+    expect(new Set(slots.filter(Boolean))).toEqual(new Set(entrants))
+    expect(slots.filter(Boolean)).toHaveLength(count)
+    for (let i = 0; i < slots.length; i += 2) expect(slots[i] !== null || slots[i + 1] !== null).toBe(true)
+  })
   it('uses the standard balanced order for an eight-slot bracket', () => {
     expect(seedOrder(8)).toEqual([1, 8, 4, 5, 2, 7, 3, 6])
   })

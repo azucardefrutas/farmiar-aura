@@ -1,3 +1,4 @@
+import { calculateStandings } from './standings.js'
 import type { SupabaseAdmin } from '../lib/supabase.js'
 
 type Row = Record<string, unknown>
@@ -20,12 +21,12 @@ function contestantView(row: Row): ContestantView {
   }
 }
 
-export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: string) {
-  const { data: tournament, error: tournamentError } = await supabase
+export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: string, tournamentId?: string) {
+  let tournamentQuery = supabase
     .from('tournaments')
-    .select('id,nombre,slug,status,actualizado_en,match_duration_seconds,aura_per_vote')
-    .eq('slug', 'batallas-de-aura')
-    .single()
+    .select('id,nombre,slug,status,actualizado_en,match_duration_seconds,aura_per_vote,format,is_current')
+  tournamentQuery = tournamentId ? tournamentQuery.eq('id', tournamentId) : tournamentQuery.eq('is_current', true)
+  const { data: tournament, error: tournamentError } = await tournamentQuery.single()
   if (tournamentError) throw tournamentError
   const auraPerVote = tournament.aura_per_vote
 
@@ -40,11 +41,16 @@ export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: s
     const { error } = await supabase.rpc('settle_expired_match', { p_match_id: expiredMatch.id })
     if (error) throw error
   }
+  if (expiredMatches?.length) {
+    const { data: latest, error } = await supabase.from('tournaments').select('status,actualizado_en').eq('id', tournament.id).single()
+    if (error) throw error
+    Object.assign(tournament, latest)
+  }
 
   const [contestantsResult, roundsResult, matchesResult] = await Promise.all([
     supabase.from('contestants').select('id,nombre,carrera,foto_url,status,creado_en').eq('tournament_id', tournament.id).order('creado_en'),
     supabase.from('rounds').select('id,round_number,nombre').eq('tournament_id', tournament.id).order('round_number'),
-    supabase.from('matches').select('id,round_id,round_number,bracket_position,contestant_a_id,contestant_b_id,status,starts_at,ends_at,duration_seconds,remaining_seconds,winner_id,final_votes_a,final_votes_b,match_type').eq('tournament_id', tournament.id).order('round_number').order('bracket_position'),
+    supabase.from('matches').select('id,round_id,round_number,bracket_position,contestant_a_id,contestant_b_id,status,starts_at,ends_at,duration_seconds,remaining_seconds,winner_id,final_votes_a,final_votes_b,match_type,is_replay,replay_of_id').eq('tournament_id', tournament.id).order('round_number').order('bracket_position'),
   ])
   if (contestantsResult.error) throw contestantsResult.error
   if (roundsResult.error) throw roundsResult.error
@@ -52,19 +58,15 @@ export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: s
 
   const contestants = (contestantsResult.data ?? []).map((row) => contestantView(row as Row))
   const contestantMap = new Map(contestants.map((contestant) => [contestant.id, contestant]))
-  const matchIds = (matchesResult.data ?? []).map((match) => match.id)
-  const votesResult = matchIds.length
-    ? await supabase.from('votes').select('match_id,contestant_id,voter_id').in('match_id', matchIds)
-    : { data: [], error: null }
+  const votesResult = await supabase.rpc('tournament_vote_counts', { p_tournament_id: tournament.id })
   if (votesResult.error) throw votesResult.error
 
   const counts = new Map<string, Map<string, number>>()
   let viewerVote: { matchId: string; contestantId: string } | null = null
-  for (const vote of votesResult.data ?? []) {
+  for (const vote of (votesResult.data ?? []) as Array<{ match_id: string; contestant_id: string; vote_count: number }>) {
     const byContestant = counts.get(vote.match_id) ?? new Map<string, number>()
-    byContestant.set(vote.contestant_id, (byContestant.get(vote.contestant_id) ?? 0) + 1)
+    byContestant.set(vote.contestant_id, Number(vote.vote_count))
     counts.set(vote.match_id, byContestant)
-    if (voterId && vote.voter_id === voterId) viewerVote = { matchId: vote.match_id, contestantId: vote.contestant_id }
   }
 
   const matches = (matchesResult.data ?? []).map((match) => {
@@ -77,6 +79,8 @@ export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: s
       roundNumber: match.round_number,
       position: match.bracket_position,
       matchType: match.match_type,
+      isReplay: match.is_replay,
+      replayOfId: match.replay_of_id,
       contestantA: match.contestant_a_id ? contestantMap.get(match.contestant_a_id) ?? null : null,
       contestantB: match.contestant_b_id ? contestantMap.get(match.contestant_b_id) ?? null : null,
       status: match.status,
@@ -97,74 +101,24 @@ export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: s
     ?? matches.find((match) => match.matchType !== 'bye' && match.status === 'scheduled' && match.contestantA && match.contestantB)
     ?? null
   const totalVotes = [...counts.values()].reduce((sum, byContestant) => sum + [...byContestant.values()].reduce((inner, value) => inner + value, 0), 0)
-
-  const standingMap = new Map(contestants.map((contestant) => [contestant.id, {
-    contestant,
-    played: 0,
-    wins: 0,
-    votes: 0,
-    aura: 0,
-    placement: null as number | null,
-  }]))
-  for (const match of matches) {
-    if (match.matchType === 'bye') continue
-    if (match.contestantA) {
-      const standing = standingMap.get(match.contestantA.id)!
-      standing.votes += match.votesA
-      standing.aura += match.auraA
-      if (match.status === 'finished') standing.played += 1
-    }
-    if (match.contestantB) {
-      const standing = standingMap.get(match.contestantB.id)!
-      standing.votes += match.votesB
-      standing.aura += match.auraB
-      if (match.status === 'finished') standing.played += 1
-    }
-    if (match.status === 'finished' && match.winnerId) standingMap.get(match.winnerId)!.wins += 1
+  if (voterId && activeMatch) {
+    const { data: vote, error } = await supabase.from('votes').select('match_id,contestant_id').eq('match_id', activeMatch.id).eq('voter_id', voterId).maybeSingle()
+    if (error) throw error
+    if (vote) viewerVote = { matchId: vote.match_id, contestantId: vote.contestant_id }
   }
 
-  const finalRoundNumber = Math.max(0, ...matches.map((match) => match.roundNumber))
-  const finalMatch = matches.find((match) => match.roundNumber === finalRoundNumber && match.matchType === 'knockout')
-  const thirdPlaceMatch = matches.find((match) => match.matchType === 'third_place')
-  const placements: Array<{ place: number; contestant: ContestantView }> = []
-  if (finalMatch?.status === 'finished' && finalMatch.winnerId) {
-    const champion = contestantMap.get(finalMatch.winnerId)
-    const runnerUp = finalMatch.contestantA?.id === finalMatch.winnerId ? finalMatch.contestantB : finalMatch.contestantA
-    if (champion) { placements.push({ place: 1, contestant: champion }); standingMap.get(champion.id)!.placement = 1 }
-    if (runnerUp) { placements.push({ place: 2, contestant: runnerUp }); standingMap.get(runnerUp.id)!.placement = 2 }
-  }
-  if (thirdPlaceMatch?.status === 'finished' && thirdPlaceMatch.winnerId) {
-    const third = contestantMap.get(thirdPlaceMatch.winnerId)
-    const fourth = thirdPlaceMatch.contestantA?.id === thirdPlaceMatch.winnerId ? thirdPlaceMatch.contestantB : thirdPlaceMatch.contestantA
-    if (third) { placements.push({ place: 3, contestant: third }); standingMap.get(third.id)!.placement = 3 }
-    if (fourth) standingMap.get(fourth.id)!.placement = 4
-  }
-  if (!thirdPlaceMatch && contestants.length === 3 && finalMatch?.status === 'finished') {
-    const semifinal = matches.find((match) =>
-      match.roundNumber === finalRoundNumber - 1
-      && match.matchType === 'knockout'
-      && match.status === 'finished'
-      && match.winnerId,
-    )
-    if (semifinal?.winnerId) {
-      const third = semifinal.contestantA?.id === semifinal.winnerId ? semifinal.contestantB : semifinal.contestantA
-      if (third) {
-        placements.push({ place: 3, contestant: third })
-        standingMap.get(third.id)!.placement = 3
-      }
-    }
-  }
-  const standings = [...standingMap.values()].sort((left, right) =>
-    (left.placement ?? 99) - (right.placement ?? 99) || right.wins - left.wins || right.votes - left.votes || left.contestant.name.localeCompare(right.contestant.name, 'es')
-  )
+  const { standings, placements } = calculateStandings(contestants, matches, tournament)
 
   return {
+    serverTime: new Date().toISOString(),
     tournament: {
       id: tournament.id,
       name: tournament.nombre,
       slug: tournament.slug,
       status: tournament.status,
       updatedAt: tournament.actualizado_en,
+      format: tournament.format,
+      isCurrent: tournament.is_current,
       rules: { durationSeconds: tournament.match_duration_seconds, auraPerVote },
     },
     contestants,

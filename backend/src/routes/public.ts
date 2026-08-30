@@ -21,6 +21,7 @@ const upload = multer({
 })
 
 const voteLimiter = rateLimit({
+  keyGenerator: (req) => req.voter!.id,
   windowMs: 60_000,
   limit: 6,
   standardHeaders: 'draft-8',
@@ -29,6 +30,7 @@ const voteLimiter = rateLimit({
 })
 
 const registrationLimiter = rateLimit({
+  keyGenerator: (req) => req.voter!.id,
   windowMs: 10 * 60_000,
   limit: 3,
   standardHeaders: 'draft-8',
@@ -47,24 +49,18 @@ function hasValidImageSignature(buffer: Buffer, mime: string) {
   return false
 }
 
-async function optionalVoterId(supabase: SupabaseAdmin, authorization?: string) {
-  const [scheme, token] = authorization?.split(' ') ?? []
-  if (scheme !== 'Bearer' || !token) return undefined
-  const { data } = await supabase.auth.getUser(token)
-  return data.user?.id
-}
-
 export function createPublicRouter(supabase: SupabaseAdmin) {
   const router = Router()
+  const readLimiter = rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false,
+    keyGenerator: (req) => req.voter!.id, message: { error: 'Espera un momento antes de actualizar de nuevo.' } })
 
-  router.get('/tournament', async (req, res, next) => {
+  router.get('/tournament', requireVoter(supabase), readLimiter, async (req, res, next) => {
     try {
-      const voterId = await optionalVoterId(supabase, req.headers.authorization)
-      res.json(await getTournamentSnapshot(supabase, voterId))
+      res.json(await getTournamentSnapshot(supabase, req.voter!.id))
     } catch (error) { next(error) }
   })
 
-  router.post('/votes', voteLimiter, requireVoter(supabase), async (req, res, next) => {
+  router.post('/votes', requireVoter(supabase), voteLimiter, async (req, res, next) => {
     try {
       const input = voteSchema.parse(req.body)
       const { data, error } = await supabase.rpc('cast_vote', {
@@ -78,10 +74,10 @@ export function createPublicRouter(supabase: SupabaseAdmin) {
     } catch (error) { next(error) }
   })
 
-  router.post('/registrations', registrationLimiter, requireVoter(supabase), upload.single('foto'), async (req, res, next) => {
+  router.post('/registrations', requireVoter(supabase), registrationLimiter, upload.single('foto'), async (req, res, next) => {
     try {
       const input = registrationSchema.parse(req.body)
-      const { data: tournament, error: tournamentError } = await supabase.from('tournaments').select('id,status').eq('slug', 'batallas-de-aura').single()
+      const { data: tournament, error: tournamentError } = await supabase.from('tournaments').select('id,status').eq('is_current', true).single()
       if (tournamentError) throw tournamentError
       if (tournament.status !== 'registration') return res.status(409).json({ error: 'El registro de participantes está cerrado.' })
 

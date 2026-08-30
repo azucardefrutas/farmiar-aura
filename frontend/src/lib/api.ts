@@ -1,4 +1,4 @@
-import type { AdminDashboard, AdminSession, TournamentSnapshot } from '../types'
+import type { AdminDashboard, AdminSession, TournamentFormat, TournamentSnapshot } from '../types'
 import { ensureVoterSession } from './supabase'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '')
@@ -40,8 +40,29 @@ export const api = {
   login(username: string, password: string) {
     return request<AdminSession>('/admin/login', { method: 'POST', body: JSON.stringify({ username, password }) })
   },
-  dashboard(token: string) {
-    return request<AdminDashboard>('/admin/dashboard', { headers: adminHeaders(token) })
+  dashboard(token: string, tournamentId?: string) {
+    return request<AdminDashboard>(`/admin/dashboard${tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ''}`, { headers: adminHeaders(token) })
+  },
+  createCall(token: string, name: string, format: TournamentFormat, durationSeconds: number, auraPerVote: number) {
+    return request<{ success: true; id: string }>('/admin/tournaments', { method: 'POST', headers: adminHeaders(token), body: JSON.stringify({ name, format, durationSeconds, auraPerVote }) })
+  },
+  publishCall(token: string, id: string) {
+    return request(`/admin/tournaments/${id}/publish`, { method: 'POST', headers: adminHeaders(token) })
+  },
+  finishCall(token: string, id: string) {
+    return request(`/admin/tournaments/${id}/finish`, { method: 'POST', headers: adminHeaders(token) })
+  },
+  createFreeMatch(token: string, id: string, contestantAId: string, contestantBId: string, durationSeconds: number) {
+    return request(`/admin/tournaments/${id}/matches`, { method: 'POST', headers: adminHeaders(token), body: JSON.stringify({ contestantAId, contestantBId, durationSeconds }) })
+  },
+  deleteMatch(token: string, id: string) {
+    return request(`/admin/matches/${id}`, { method: 'DELETE', headers: adminHeaders(token) })
+  },
+  replayMatch(token: string, id: string) {
+    return request(`/admin/matches/${id}/replay`, { method: 'POST', headers: adminHeaders(token) })
+  },
+  deleteRegistration(token: string, id: string) {
+    return request(`/admin/registrations/${id}`, { method: 'DELETE', headers: adminHeaders(token) })
   },
   review(token: string, id: string, status: 'approved' | 'rejected') {
     return request(`/admin/registrations/${id}/review`, { method: 'POST', headers: adminHeaders(token), body: JSON.stringify({ status }) })
