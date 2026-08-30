@@ -120,7 +120,8 @@ button:disabled { cursor: not-allowed !important; opacity: .45; transform: none 
 .photo-picker { border: 1px dashed rgba(170,22,220,.32); border-radius: 1.15rem; background: rgba(255,255,255,.52); box-shadow: inset 3px 3px 8px rgba(174,181,199,.22), inset -3px -3px 8px rgba(255,255,255,.72); transition: border-color 180ms ease, background-color 180ms ease; }
 .photo-picker:hover { border-color: rgba(170,22,220,.58); background: rgba(248,233,255,.76); }
 .admin-section { margin-top: 2rem; border: 1px solid var(--glass-border); border-radius: 1.5rem; background: rgba(255,255,255,.6); padding: 1.25rem; box-shadow: var(--clay-shadow); backdrop-filter: blur(20px) saturate(125%); }
-.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
+.section-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
+.section-heading > div:first-child { flex: 1 1 11rem; }
 .section-heading h2 { font-family: var(--font-display); font-size: 1.35rem; font-weight: 800; color: #171a2c; }
 .eyebrow { font-size: .7rem; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; color: #8d0db9; }
 .count-badge { display: grid; min-width: 2.25rem; height: 2.25rem; place-items: center; border: 1px solid var(--glass-border); border-radius: .8rem; background: #f4d8ff; font-weight: 800; color: #760b9c; box-shadow: var(--clay-shadow-small); }
