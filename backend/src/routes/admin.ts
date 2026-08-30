@@ -95,11 +95,11 @@ export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig) {
     try {
       const input = collaboratorSchema.parse(req.body)
       const passwordHash = await bcrypt.hash(input.password, 12)
-      const { data, error } = await supabase.from('administrators').insert({ usuario: input.username, contrasenia_hash: passwordHash, rol: 'collaborator' }).select('id').single()
+      const { data, error } = await supabase.from('administrators').insert({ usuario: input.username, contrasenia_hash: passwordHash, rol: 'admin' }).select('id').single()
       if (error?.code === '23505') return res.status(409).json({ error: 'Ese usuario ya existe.' })
       if (error) throw error
-      await audit(supabase, req.administrator!.id, 'collaborator.created', 'administrator', data.id)
-      return res.status(201).json({ success: true, message: 'Colaborador agregado.' })
+      await audit(supabase, req.administrator!.id, 'administrator.created', 'administrator', data.id)
+      return res.status(201).json({ success: true, message: 'Administrador colaborativo agregado.' })
     } catch (error) { next(error) }
   })
 
