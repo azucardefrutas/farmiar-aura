@@ -8,10 +8,18 @@ import { errorHandler } from './middleware/errors.js'
 import { createAdminRouter } from './routes/admin.js'
 import { createPublicRouter } from './routes/public.js'
 
+export function allowedFrontendOrigins(configuredOrigins: string) {
+  return new Set([
+    ...configuredOrigins.split(',').map((origin) => origin.trim()).filter(Boolean),
+    'https://farmiar-aura-frontend.vercel.app',
+    'https://farmiar-aura-admin.vercel.app',
+  ])
+}
+
 export function createApp(config: AppConfig) {
   const app = express()
   const supabase = createSupabaseAdmin(config)
-  const allowedOrigins = new Set(config.FRONTEND_URL.split(',').map((origin) => origin.trim()).filter(Boolean))
+  const allowedOrigins = allowedFrontendOrigins(config.FRONTEND_URL)
 
   app.set('trust proxy', config.TRUST_PROXY_HOPS)
   app.disable('x-powered-by')
