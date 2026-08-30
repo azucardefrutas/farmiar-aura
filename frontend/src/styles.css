@@ -231,7 +231,7 @@ button:disabled { cursor: not-allowed !important; opacity: .45; transform: none 
 .presence-label { display: inline-flex; align-items: center; gap: .35rem; font-size: .72rem; font-weight: 750; color: #697084; }
 .fifa-scroll { max-width: 100%; overflow-x: auto; border: 1px solid rgba(255,255,255,.9); border-radius: 1.5rem; background: radial-gradient(ellipse at center,rgba(244,216,255,.7),rgba(255,255,255,.35) 65%); padding: 1.25rem; scrollbar-color: #c897dd transparent; }
 .fifa-board { display: flex; width: max-content; min-width: 100%; justify-content: center; gap: 1.75rem; }
-.fifa-column { display: flex; width: 12rem; flex: none; flex-direction: column; padding-block: 1rem; }
+.fifa-column { display: flex; width: 11rem; flex: none; flex-direction: column; padding-block: 1rem; }
 .fifa-column .bracket-node::after { display: none; }
 .fifa-right .bracket-node::after { left: auto; right: 100%; }
 .fifa-final .bracket-node::after { display: none; }
