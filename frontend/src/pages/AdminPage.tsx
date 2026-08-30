@@ -27,6 +27,7 @@ export function AdminPage() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [onlineAdministrators, setOnlineAdministrators] = useState<OnlineAdministrator[]>([])
   const collaboratorKey = dashboard?.collaborators.map((item) => `${item.username}:${item.role}`).join('|') ?? ''
+  const contestantKey = dashboard?.contestants.map((item) => item.id).join('|') ?? ''
 
   const load = useCallback(async () => {
     if (!session) return
@@ -61,9 +62,13 @@ export function AdminPage() {
   }, [dashboard?.tournament.id, session?.user.username, session?.user.role, collaboratorKey])
 
   useEffect(() => {
-    if (!dashboard || dashboard.rounds.length > 0 || selected.size > 0) return
-    setSelected(new Set(dashboard.contestants.map((contestant) => contestant.id)))
-  }, [dashboard, selected.size])
+    if (!dashboard) return
+    setSelected((current) => {
+      const validIds = new Set(dashboard.contestants.map((contestant) => contestant.id))
+      const retained = [...current].filter((id) => validIds.has(id))
+      return new Set(retained.length > 0 ? retained : validIds)
+    })
+  }, [contestantKey])
 
   function logout() {
     sessionStorage.removeItem(SESSION_KEY)
