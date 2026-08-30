@@ -12,6 +12,7 @@ export const voteSchema = z.object({
 export const registrationSchema = z.object({
   nombre: cleanText(2, 60),
   apellidos: cleanText(2, 80),
+  edad: z.coerce.number().int().min(15).max(99),
   carrera: cleanText(2, 100),
   grupo: cleanText(1, 40),
   alias: z.string().trim().max(50).optional().transform((value) => value || null),
@@ -34,7 +35,7 @@ export const reviewSchema = z.object({
 }).strict()
 
 export const bracketSchema = z.object({
-  contestantIds: z.array(uuidSchema).min(2).max(32)
+  contestantIds: z.array(uuidSchema).min(4).max(32)
     .refine((ids) => new Set(ids).size === ids.length, 'No se permiten participantes repetidos'),
 }).strict()
 

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, CircleStop, LogOut, Pause, Play, Plus, Radio, RefreshCw, RotateCcw, Shield, SkipForward, UserCheck, UserX, Users } from 'lucide-react'
+import { Check, CircleStop, LayoutDashboard, LogOut, Menu, Pause, Play, Plus, Radio, RefreshCw, RotateCcw, Shield, SkipForward, Trophy, UserCheck, UserPlus, UserX, Users, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { subscribeToTournament } from '../lib/realtime'
 import { ensureVoterSession } from '../lib/supabase'
 import type { AdminDashboard, AdminSession, AuraMatch } from '../types'
 import { BrandMark } from '../components/BrandMark'
 import { Countdown } from '../components/Countdown'
+import { StandingsTable } from '../components/StandingsTable'
 
 const SESSION_KEY = 'farmear-aura-admin-session'
 
@@ -22,6 +23,7 @@ export function AdminPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (!session) return
@@ -69,8 +71,9 @@ export function AdminPage() {
     finally { setBusy('') }
   }
 
-  const bracketCountValid = [2, 4, 8, 16, 32].includes(selected.size)
+  const bracketCountValid = selected.size >= 4 && selected.size <= 32
   const pending = dashboard?.registrations.filter((item) => item.status === 'pending') ?? []
+  const registrations = dashboard?.registrations ?? []
   const matches = dashboard?.rounds.flatMap((round) => round.matches) ?? []
 
   if (!session) {
@@ -94,9 +97,11 @@ export function AdminPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-arena text-primary">
-      <header className="event-header"><div className="page-shell flex min-h-20 items-center justify-between gap-4 py-4"><BrandMark /><div className="flex items-center gap-2"><span className="hidden text-sm text-secondary sm:inline">{session.user.username} · {session.user.role}</span><Link to="/live" className="secondary-action"><Radio size={17} /> Live</Link><button type="button" onClick={logout} className="icon-action" aria-label="Cerrar sesión"><LogOut size={18} /></button></div></div></header>
-      <main className="page-shell py-8 sm:py-10">
+    <div className="admin-page min-h-dvh bg-arena text-primary">
+      <header className="public-mobile-bar"><BrandMark /><button type="button" className="icon-action" onClick={() => setMenuOpen(true)} aria-label="Abrir menú administrativo"><Menu size={20} /></button></header>
+      {menuOpen && <button type="button" className="nav-backdrop" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú" />}
+      <aside className={`admin-sidebar ${menuOpen ? 'is-open' : ''}`}><div className="flex items-center justify-between"><BrandMark /><button type="button" className="icon-action nav-close" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú"><X size={18} /></button></div><nav className="mt-9 grid gap-2"><a className="sidebar-link is-active" href="#resumen" onClick={() => setMenuOpen(false)}><LayoutDashboard size={18} /> Resumen</a><a className="sidebar-link" href="#inscripciones" onClick={() => setMenuOpen(false)}><UserPlus size={18} /> Inscripciones <span className="sidebar-count">{registrations.length}</span></a><a className="sidebar-link" href="#torneo" onClick={() => setMenuOpen(false)}><Trophy size={18} /> Llave y batallas</a><a className="sidebar-link" href="#equipo" onClick={() => setMenuOpen(false)}><Users size={18} /> Colaboradores</a></nav><div className="mt-auto space-y-3"><p className="text-xs text-muted">{session.user.username} · {session.user.role}</p><Link to="/live" className="secondary-action w-full"><Radio size={17} /> Pantalla Live</Link><button type="button" onClick={logout} className="secondary-action w-full"><LogOut size={17} /> Cerrar sesión</button></div></aside>
+      <main id="resumen" className="admin-content page-shell py-8 sm:py-10">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div><p className="text-xs font-bold uppercase tracking-[.24em] text-fuchsia-700">Centro de control</p><h1 className="mt-2 font-display text-4xl font-extrabold tracking-[-.04em] text-primary">Batallas de Aura</h1><p className="mt-3 text-secondary">Todo cambio confirmado se publica a votantes y pantalla en vivo por WebSocket.</p></div>
           <button type="button" className="secondary-action" onClick={() => void load()}><RefreshCw size={17} /> Actualizar</button>
@@ -113,24 +118,27 @@ export function AdminPage() {
 
             {dashboard.activeMatch && <ActiveMatchControl match={dashboard.activeMatch} busy={busy} onAction={(action, tieWinnerId) => perform(`match-${action}`, () => api.matchAction(session.token, dashboard.activeMatch!.id, action, tieWinnerId), `Batalla ${action === 'start' ? 'iniciada' : action === 'pause' ? 'pausada' : action === 'resume' ? 'reanudada' : 'finalizada'}.`)} />}
 
-            <section className="admin-section">
-              <div className="section-heading"><div><p className="eyebrow">Personas</p><h2>Solicitudes pendientes</h2></div><span className="count-badge">{pending.length}</span></div>
-              {pending.length === 0 ? <p className="empty-row">No hay solicitudes pendientes.</p> : <div className="grid gap-4 lg:grid-cols-2">{pending.map((item) => (
+            <section id="inscripciones" className="admin-section scroll-mt-6">
+              <div className="section-heading"><div><p className="eyebrow">Bandeja en vivo</p><h2>Personas inscritas</h2></div><span className="count-badge">{registrations.length}</span></div>
+              <p className="mb-5 text-sm text-secondary">Las nuevas inscripciones quedan confirmadas automáticamente y aparecen aquí por WebSocket.</p>
+              {registrations.length === 0 ? <p className="empty-row">Todavía no hay personas inscritas.</p> : <div className="grid gap-4 lg:grid-cols-2">{registrations.map((item) => (
                 <article key={item.id} className="registration-card">
                   {item.foto_url ? <img src={item.foto_url} alt="" width="80" height="80" className="size-20 rounded-xl object-cover" /> : <div className="grid size-20 place-items-center rounded-xl bg-fuchsia-100 font-display text-xl font-extrabold text-fuchsia-900">{item.nombre[0]}{item.apellidos[0]}</div>}
-                  <div className="min-w-0 flex-1"><h3 className="font-bold text-primary">{item.alias || `${item.nombre} ${item.apellidos}`}</h3><p className="mt-1 text-sm text-secondary">{item.carrera} · {item.grupo}</p><div className="mt-4 flex flex-wrap gap-2"><button type="button" className="compact-action compact-approve" disabled={Boolean(busy)} onClick={() => void perform(`approve-${item.id}`, () => api.review(session.token, item.id, 'approved'), 'Participante aprobado.')}><UserCheck size={16} /> Aprobar</button><button type="button" className="compact-action compact-reject" disabled={Boolean(busy)} onClick={() => void perform(`reject-${item.id}`, () => api.review(session.token, item.id, 'rejected'), 'Solicitud rechazada.')}><UserX size={16} /> Rechazar</button></div></div>
+                  <div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><h3 className="font-bold text-primary">{item.alias || `${item.nombre} ${item.apellidos}`}</h3><span className={`registration-status status-${item.status}`}>{item.status === 'approved' ? 'Inscrito' : item.status === 'pending' ? 'Pendiente' : 'Rechazado'}</span></div><p className="mt-1 text-sm text-secondary">{item.edad} años · {item.carrera} · {item.grupo}</p>{item.status === 'pending' && <div className="mt-4 flex flex-wrap gap-2"><button type="button" className="compact-action compact-approve" disabled={Boolean(busy)} onClick={() => void perform(`approve-${item.id}`, () => api.review(session.token, item.id, 'approved'), 'Participante aprobado.')}><UserCheck size={16} /> Aprobar</button><button type="button" className="compact-action compact-reject" disabled={Boolean(busy)} onClick={() => void perform(`reject-${item.id}`, () => api.review(session.token, item.id, 'rejected'), 'Solicitud rechazada.')}><UserX size={16} /> Rechazar</button></div>}</div>
                 </article>
               ))}</div>}
             </section>
 
-            <section className="admin-section">
-              <div className="section-heading"><div><p className="eyebrow">Torneo</p><h2>Participantes y bracket</h2></div><button type="button" className="primary-action" disabled={!bracketCountValid || Boolean(busy)} onClick={() => void perform('bracket', () => api.generateBracket(session.token, dashboard.tournament.id, [...selected]), 'Llave generada.')}>Generar llave ({selected.size})</button></div>
-              <p className="mb-5 text-sm text-secondary">Selecciona exactamente 2, 4, 8, 16 o 32 participantes. Generar de nuevo reemplaza la llave y sus votos.</p>
+            <section id="torneo" className="admin-section scroll-mt-6">
+              <div className="section-heading"><div><p className="eyebrow">Torneo</p><h2>Participantes y llave</h2></div>{dashboard.tournament.status === 'registration' ? <button type="button" className="primary-action" disabled={dashboard.contestants.length < 4 || Boolean(busy)} onClick={() => { if (window.confirm(`¿Cerrar inscripciones con ${dashboard.contestants.length} participantes y generar la llave?`)) void perform('close-registration', () => api.closeRegistrations(session.token, dashboard.tournament.id), 'Inscripciones cerradas y llave generada.') }}><Trophy size={17} /> Cerrar inscripciones ({dashboard.contestants.length})</button> : <span className={`status-pill status-${dashboard.tournament.status}`}><span />{dashboard.tournament.status}</span>}</div>
+              <p className="mb-5 text-sm text-secondary">Con 4 a 32 personas, el sistema sortea siembras, distribuye descansos cuando hacen falta y crea final y tercer lugar. La selección manual queda disponible para reorganizar antes de iniciar.</p>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{dashboard.contestants.map((contestant) => <label key={contestant.id} className="select-contestant"><input type="checkbox" checked={selected.has(contestant.id)} onChange={() => setSelected((current) => { const next = new Set(current); next.has(contestant.id) ? next.delete(contestant.id) : next.add(contestant.id); return next })} /><span>{contestant.name}<small>{contestant.program}</small></span></label>)}</div>
+              <div className="mt-5 flex justify-end"><button type="button" className="secondary-action" disabled={!bracketCountValid || Boolean(busy)} onClick={() => void perform('bracket', () => api.generateBracket(session.token, dashboard.tournament.id, [...selected]), 'Llave regenerada.')}>Regenerar con selección ({selected.size})</button></div>
               {dashboard.rounds.length > 0 && <div className="mt-8 overflow-x-auto"><div className="flex min-w-max gap-5">{dashboard.rounds.map((round) => <div key={round.id} className="w-80"><p className="eyebrow mb-3">{round.name}</p>{round.matches.map((match) => <MatchControl key={match.id} match={match} busy={busy} onAction={(action) => perform(`${match.id}-${action}`, () => api.matchAction(session.token, match.id, action), 'Estado de batalla actualizado.')} />)}</div>)}</div></div>}
+              {dashboard.standings.length > 0 && <div className="mt-9"><div className="section-heading"><div><p className="eyebrow">Resultados</p><h2>Tabla de posiciones</h2></div></div><StandingsTable standings={dashboard.standings} placements={dashboard.placements} /></div>}
             </section>
 
-            <section className="admin-section grid gap-8 lg:grid-cols-2">
+            <section id="equipo" className="admin-section grid scroll-mt-6 gap-8 lg:grid-cols-2">
               <div><div className="section-heading"><div><p className="eyebrow">Equipo</p><h2>Agregar administrador</h2></div></div><p className="mb-4 text-sm leading-6 text-secondary">El nuevo integrante podrá revisar solicitudes, controlar batallas y administrar el torneo contigo.</p><CollaboratorForm busy={busy === 'collaborator'} onSubmit={(username, password) => perform('collaborator', () => api.addCollaborator(session.token, username, password), 'Administrador colaborativo agregado.')} /></div>
               <div><div className="section-heading"><div><p className="eyebrow text-red-700">Seguridad</p><h2>Reiniciar torneo</h2></div></div><p className="text-sm leading-6 text-secondary">Elimina bracket y votos, conserva participantes aprobados y vuelve a registro.</p>{session.user.role === 'admin' && <button type="button" className="danger-action mt-5" disabled={Boolean(busy)} onClick={() => { if (window.confirm('¿Reiniciar bracket y eliminar todos los votos?')) void perform('reset', () => api.reset(session.token, dashboard.tournament.id), 'Torneo reiniciado.') }}><RotateCcw size={17} /> Reiniciar torneo</button>}</div>
             </section>

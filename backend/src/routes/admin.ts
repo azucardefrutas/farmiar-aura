@@ -7,6 +7,7 @@ import type { SupabaseAdmin } from '../lib/supabase.js'
 import { requireAdmin } from '../middleware/auth.js'
 import { bracketSchema, collaboratorSchema, loginSchema, matchActionSchema, reviewSchema, uuidSchema } from '../schemas.js'
 import { getTournamentSnapshot } from '../services/tournament.js'
+import { buildBracketSlots } from '../services/bracket.js'
 
 async function audit(supabase: SupabaseAdmin, adminId: string, action: string, entityType: string, entityId?: string, metadata: Record<string, unknown> = {}) {
   const { error } = await supabase.from('audit_logs').insert({ administrator_id: adminId, action, entity_type: entityType, entity_id: entityId, metadata })
@@ -37,7 +38,7 @@ export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig) {
     try {
       const snapshot = await getTournamentSnapshot(supabase)
       const [registrations, logs] = await Promise.all([
-        supabase.from('participant_registrations').select('id,nombre,apellidos,carrera,grupo,alias,instagram,foto_url,status,creado_en').eq('tournament_id', snapshot.tournament.id).order('creado_en', { ascending: false }),
+        supabase.from('participant_registrations').select('id,nombre,apellidos,edad,carrera,grupo,alias,instagram,foto_url,status,creado_en').eq('tournament_id', snapshot.tournament.id).order('creado_en', { ascending: false }),
         supabase.from('audit_logs').select('id,action,entity_type,entity_id,metadata,creado_en,administrator_id').order('creado_en', { ascending: false }).limit(30),
       ])
       if (registrations.error) throw registrations.error
@@ -61,10 +62,34 @@ export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig) {
     try {
       const tournamentId = uuidSchema.parse(req.params.id)
       const input = bracketSchema.parse(req.body)
-      const { data, error } = await supabase.rpc('generate_bracket', { p_tournament_id: tournamentId, p_contestant_ids: input.contestantIds })
+      const slots = buildBracketSlots(input.contestantIds)
+      const { data, error } = await supabase.rpc('generate_bracket', { p_tournament_id: tournamentId, p_contestant_ids: slots })
       if (error) return res.status(400).json({ error: error.message })
       await audit(supabase, req.administrator!.id, 'bracket.generated', 'tournament', tournamentId, { participants: input.contestantIds.length })
       return res.json({ success: true, result: data })
+    } catch (error) { next(error) }
+  })
+
+  router.post('/tournaments/:id/registrations/close', authenticated, async (req, res, next) => {
+    try {
+      const tournamentId = uuidSchema.parse(req.params.id)
+      const { data: contestants, error: contestantsError } = await supabase
+        .from('contestants')
+        .select('id')
+        .eq('tournament_id', tournamentId)
+        .eq('status', 'approved')
+        .order('creado_en')
+      if (contestantsError) throw contestantsError
+      const contestantIds = (contestants ?? []).map((contestant) => contestant.id)
+      const slots = buildBracketSlots(contestantIds)
+      const { data, error } = await supabase.rpc('generate_bracket', { p_tournament_id: tournamentId, p_contestant_ids: slots })
+      if (error) return res.status(400).json({ error: error.message })
+      await audit(supabase, req.administrator!.id, 'registrations.closed', 'tournament', tournamentId, {
+        participants: contestantIds.length,
+        slots: slots.length,
+        byes: slots.length - contestantIds.length,
+      })
+      return res.json({ success: true, result: data, message: 'Inscripciones cerradas y llave generada.' })
     } catch (error) { next(error) }
   })
 

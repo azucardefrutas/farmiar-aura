@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Radio, RefreshCw, Shield, Trophy, UserPlus, Users } from 'lucide-react'
+import { Shield, Trophy, UserPlus, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { subscribeToTournament } from '../lib/realtime'
 import type { TournamentSnapshot } from '../types'
 import { BattleContestant } from '../components/BattleContestant'
-import { BrandMark } from '../components/BrandMark'
 import { Countdown } from '../components/Countdown'
-import { ParticipationModal } from '../components/ParticipationModal'
 import { ScoreRail } from '../components/ScoreRail'
+import { PublicNavigation } from '../components/PublicNavigation'
+import { TournamentBracket } from '../components/TournamentBracket'
+import { StandingsTable } from '../components/StandingsTable'
 
 export function TournamentPage() {
   const [snapshot, setSnapshot] = useState<TournamentSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
   const [busyContestant, setBusyContestant] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -51,21 +51,11 @@ export function TournamentPage() {
   const isLive = match?.status === 'live'
 
   return (
-    <div className="min-h-dvh bg-arena text-primary">
+    <div className="public-page min-h-dvh bg-arena text-primary">
       <a href="#main" className="skip-link">Saltar al torneo</a>
-      <header className="event-header">
-        <div className="page-shell flex min-h-20 items-center justify-between gap-4 py-4">
-          <BrandMark />
-          <nav className="flex items-center gap-2" aria-label="Navegación principal">
-            <Link to="/live" className="secondary-action"><Radio size={17} /> <span className="hidden sm:inline">Pantalla en vivo</span></Link>
-            <button type="button" onClick={() => setModalOpen(true)} disabled={snapshot?.tournament.status !== 'registration'} className="primary-action" aria-label="Participar en el torneo">
-              <UserPlus size={18} /> <span className="hidden sm:inline">Participar</span>
-            </button>
-          </nav>
-        </div>
-      </header>
+      <PublicNavigation />
 
-      <main id="main" className="page-shell py-7 sm:py-10">
+      <main id="main" className="public-content page-shell py-7 sm:py-10">
         <section className="mb-7 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-3">
@@ -75,7 +65,7 @@ export function TournamentPage() {
             <h1 className="mt-4 max-w-3xl font-display text-3xl font-extrabold leading-[1.04] tracking-[-.04em] text-primary sm:text-5xl">{match ? 'La batalla del momento' : 'La arena está por abrir'}</h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-secondary">Un voto por batalla. Cada voto confirmado vale 100 Aura y el ganador avanza automáticamente.</p>
           </div>
-          {match && <div className="timer-panel"><span className="text-xs font-bold uppercase tracking-[.2em] text-tertiary">Tiempo restante</span><Countdown endsAt={match.endsAt} pausedSeconds={match.remainingSeconds} status={match.status} /></div>}
+          {match && <div className="timer-panel"><span className="text-xs font-bold uppercase tracking-[.2em] text-tertiary">Tiempo restante</span><Countdown endsAt={match.endsAt} pausedSeconds={match.remainingSeconds} status={match.status} onComplete={() => void load()} /></div>}
         </section>
 
         <div aria-live="polite" className="mb-5 space-y-3">
@@ -102,7 +92,7 @@ export function TournamentPage() {
             <Trophy size={42} className="text-fuchsia-700" />
             <h2 className="mt-5 font-display text-3xl font-extrabold text-primary">Esperando la primera batalla</h2>
             <p className="mt-3 max-w-xl text-secondary">Las solicitudes están abiertas. Cuando el administrador apruebe participantes y genere la llave, este espacio se actualizará en tiempo real.</p>
-            {snapshot?.tournament.status === 'registration' && <button type="button" className="primary-action mt-6" onClick={() => setModalOpen(true)}><UserPlus size={18} /> Quiero participar</button>}
+            {snapshot?.tournament.status === 'registration' && <Link className="primary-action mt-6" to="/participar"><UserPlus size={18} /> Quiero participar</Link>}
           </section>
         )}
 
@@ -113,20 +103,13 @@ export function TournamentPage() {
               <div className="metric-line"><Shield /><span><strong>{snapshot.summary.votes}</strong> votos confirmados</span></div>
               <div className="metric-line"><Trophy /><span><strong>{snapshot.summary.totalAura.toLocaleString('es-MX')}</strong> Aura generada</span></div>
             </div>
-            {snapshot.rounds.length > 0 && (
-              <div className="mt-10 overflow-x-auto pb-4">
-                <h2 id="tournament-summary" className="font-display text-2xl font-extrabold text-primary">Llave del torneo</h2>
-                <div className="mt-5 flex min-w-max gap-5">
-                  {snapshot.rounds.map((round) => <div key={round.id} className="w-72"><p className="mb-3 text-xs font-bold uppercase tracking-[.2em] text-fuchsia-700">{round.name}</p>{round.matches.map((item) => <div key={item.id} className="bracket-match"><span>{item.contestantA?.name ?? 'Por definir'}</span><span>{item.contestantB?.name ?? 'Por definir'}</span></div>)}</div>)}
-                </div>
-              </div>
-            )}
+            <section id="llave" className="mt-10 scroll-mt-8"><div className="section-heading"><div><p className="eyebrow">Eliminación directa</p><h2 id="tournament-summary">Llave del torneo</h2></div></div><TournamentBracket rounds={snapshot.rounds} /></section>
+            {snapshot.standings.length > 0 && <section id="posiciones" className="mt-10 scroll-mt-8"><div className="section-heading"><div><p className="eyebrow">Clasificación</p><h2>Tabla de posiciones</h2></div></div><StandingsTable standings={snapshot.standings} placements={snapshot.placements} /></section>}
           </section>
         )}
       </main>
 
-      <footer className="page-shell flex items-center justify-between border-t border-slate-300/60 py-6 text-xs text-muted"><span>Batallas de Aura</span><Link to="/admin" className="inline-flex min-h-11 items-center gap-2 px-2 hover:text-primary"><Shield size={15} /> Administración</Link></footer>
-      <ParticipationModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={(message) => { setNotice(message); void load() }} />
+      <footer className="public-content page-shell flex items-center justify-between border-t border-slate-300/60 py-6 text-xs text-muted"><span>Batallas de Aura</span><Link to="/admin" className="inline-flex min-h-11 items-center gap-2 px-2 hover:text-primary"><Shield size={15} /> Administración</Link></footer>
     </div>
   )
 }

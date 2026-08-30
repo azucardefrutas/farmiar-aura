@@ -26,7 +26,7 @@ export function LivePage() {
       {error && <p role="alert" className="mx-auto mt-6 max-w-2xl notice-error">{error}</p>}
       {match?.contestantA && match.contestantB ? (
         <div className="mx-auto flex w-full max-w-[1500px] flex-1 flex-col justify-center px-5 pb-10 sm:px-8">
-          <div className="mb-8 text-center"><p className="text-sm font-bold uppercase tracking-[.3em] text-fuchsia-700">Ronda {match.roundNumber} · Batalla {match.position}</p><div className="mt-4"><Countdown endsAt={match.endsAt} pausedSeconds={match.remainingSeconds} status={match.status} large /></div></div>
+          <div className="mb-8 text-center"><p className="text-sm font-bold uppercase tracking-[.3em] text-fuchsia-700">Ronda {match.roundNumber} · Batalla {match.position}</p><div className="mt-4"><Countdown endsAt={match.endsAt} pausedSeconds={match.remainingSeconds} status={match.status} large onComplete={() => void load()} /></div></div>
           <ScoreRail votesA={match.votesA} votesB={match.votesB} />
           <div className="mt-7 grid gap-5 md:grid-cols-2">
             <BattleContestant contestant={match.contestantA} aura={match.auraA} votes={match.votesA} side="amber" canVote={false} selected={false} busy={false} onVote={() => undefined} readOnly />

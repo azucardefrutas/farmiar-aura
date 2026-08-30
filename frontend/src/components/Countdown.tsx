@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Props {
   endsAt: string | null
   pausedSeconds: number | null
   status: string
   large?: boolean
+  onComplete?: () => void
 }
 
 export function remainingSeconds(endsAt: string | null, pausedSeconds: number | null, status: string, now = Date.now()) {
@@ -13,13 +14,24 @@ export function remainingSeconds(endsAt: string | null, pausedSeconds: number | 
   return Math.max(0, Math.ceil((new Date(endsAt).getTime() - now) / 1000))
 }
 
-export function Countdown({ endsAt, pausedSeconds, status, large = false }: Props) {
+export function Countdown({ endsAt, pausedSeconds, status, large = false, onComplete }: Props) {
   const [seconds, setSeconds] = useState(() => remainingSeconds(endsAt, pausedSeconds, status))
+  const completedRef = useRef(false)
+  const onCompleteRef = useRef(onComplete)
+  onCompleteRef.current = onComplete
 
   useEffect(() => {
+    completedRef.current = false
     setSeconds(remainingSeconds(endsAt, pausedSeconds, status))
     if (status !== 'live' || !endsAt) return
-    const interval = window.setInterval(() => setSeconds(remainingSeconds(endsAt, pausedSeconds, status)), 250)
+    const interval = window.setInterval(() => {
+      const next = remainingSeconds(endsAt, pausedSeconds, status)
+      setSeconds(next)
+      if (next === 0 && !completedRef.current) {
+        completedRef.current = true
+        onCompleteRef.current?.()
+      }
+    }, 250)
     return () => window.clearInterval(interval)
   }, [endsAt, pausedSeconds, status])
 

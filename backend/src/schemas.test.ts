@@ -8,10 +8,17 @@ describe('request schemas', () => {
 
   it('normalizes optional registration fields', () => {
     const parsed = registrationSchema.parse({
-      nombre: 'Tony', apellidos: 'Hernández', carrera: 'Software', grupo: '8A', alias: '', instagram: '@tony.h',
+      nombre: 'Tony', apellidos: 'Hernández', edad: '20', carrera: 'Software', grupo: '8A', alias: '', instagram: '@tony.h',
     })
     expect(parsed.alias).toBeNull()
+    expect(parsed.edad).toBe(20)
     expect(parsed.instagram).toBe('@tony.h')
+  })
+
+  it('requires a plausible participant age', () => {
+    expect(() => registrationSchema.parse({
+      nombre: 'Tony', apellidos: 'Hernández', edad: 12, carrera: 'Software', grupo: '8A',
+    })).toThrow()
   })
 
   it('rejects repeated contestants in a bracket', () => {

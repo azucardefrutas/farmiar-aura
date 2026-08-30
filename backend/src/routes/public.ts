@@ -90,24 +90,25 @@ export function createPublicRouter(supabase: SupabaseAdmin) {
         photoUrl = supabase.storage.from('participant-photos').getPublicUrl(photoPath).data.publicUrl
       }
 
-      const { error } = await supabase.from('participant_registrations').insert({
-        id: registrationId,
-        tournament_id: tournament.id,
-        submitter_id: req.voter!.id,
-        nombre: input.nombre,
-        apellidos: input.apellidos,
-        carrera: input.carrera,
-        grupo: input.grupo,
-        alias: input.alias,
-        instagram: input.instagram,
-        foto_url: photoUrl,
+      const { data, error } = await supabase.rpc('submit_registration', {
+        p_id: registrationId,
+        p_tournament_id: tournament.id,
+        p_submitter_id: req.voter!.id,
+        p_nombre: input.nombre,
+        p_apellidos: input.apellidos,
+        p_edad: input.edad,
+        p_carrera: input.carrera,
+        p_grupo: input.grupo,
+        p_alias: input.alias,
+        p_instagram: input.instagram,
+        p_foto_url: photoUrl,
       })
       if (error) {
         if (photoPath) await supabase.storage.from('participant-photos').remove([photoPath])
         if (error.code === '23505') return res.status(409).json({ error: 'Ya enviaste una solicitud para este torneo.' })
         throw error
       }
-      return res.status(201).json({ success: true, registrationId, message: 'Solicitud enviada. El equipo la revisará antes de publicarla.' })
+      return res.status(201).json({ success: true, registrationId, result: data, message: 'Inscripción confirmada. Ya formas parte de Batallas de Aura.' })
     } catch (error) { next(error) }
   })
 

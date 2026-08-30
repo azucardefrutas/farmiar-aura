@@ -1,4 +1,6 @@
 -- Batallas de Aura: esquema inicial para torneo, solicitudes, votos y tiempo real.
+-- La evolución de producción posterior a este esquema base está versionada en
+-- supabase/migrations/20260830013000_complete_tournament_flow.sql.
 
 create table public.tournaments (
   id uuid primary key default gen_random_uuid(),

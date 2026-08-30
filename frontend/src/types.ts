@@ -1,5 +1,6 @@
 export type TournamentStatus = 'draft' | 'registration' | 'ready' | 'live' | 'finished' | 'archived'
 export type MatchStatus = 'scheduled' | 'live' | 'paused' | 'finished' | 'cancelled'
+export type MatchType = 'knockout' | 'third_place' | 'bye'
 
 export interface Contestant {
   id: string
@@ -14,6 +15,7 @@ export interface AuraMatch {
   roundId: string
   roundNumber: number
   position: number
+  matchType: MatchType
   contestantA: Contestant | null
   contestantB: Contestant | null
   status: MatchStatus
@@ -42,13 +44,19 @@ export interface TournamentSnapshot {
   rounds: Round[]
   activeMatch: AuraMatch | null
   viewerVote: { matchId: string; contestantId: string } | null
+  placements: Placement[]
+  standings: Standing[]
   summary: { contestants: number; votes: number; totalAura: number }
 }
+
+export interface Placement { place: number; contestant: Contestant }
+export interface Standing { contestant: Contestant; played: number; wins: number; votes: number; aura: number; placement: number | null }
 
 export interface Registration {
   id: string
   nombre: string
   apellidos: string
+  edad: number
   carrera: string
   grupo: string
   alias: string | null

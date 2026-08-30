@@ -49,6 +49,9 @@ export const api = {
   generateBracket(token: string, tournamentId: string, contestantIds: string[]) {
     return request(`/admin/tournaments/${tournamentId}/bracket`, { method: 'POST', headers: adminHeaders(token), body: JSON.stringify({ contestantIds }) })
   },
+  closeRegistrations(token: string, tournamentId: string) {
+    return request(`/admin/tournaments/${tournamentId}/registrations/close`, { method: 'POST', headers: adminHeaders(token) })
+  },
   matchAction(token: string, matchId: string, action: 'start' | 'pause' | 'resume' | 'finish', tieWinnerId?: string) {
     return request(`/admin/matches/${matchId}/action`, { method: 'POST', headers: adminHeaders(token), body: JSON.stringify({ action, tieWinnerId }) })
   },
