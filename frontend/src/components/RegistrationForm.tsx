@@ -12,10 +12,12 @@ export function RegistrationForm({ onCreated }: { onCreated?: (message: string) 
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const formElement = event.currentTarget
+    const formData = new FormData(formElement)
     setSubmitting(true); setError(''); setSuccess('')
     try {
-      const result = await api.register(new FormData(event.currentTarget))
-      setSuccess(result.message); onCreated?.(result.message); event.currentTarget.reset()
+      const result = await api.register(formData)
+      setSuccess(result.message); onCreated?.(result.message); formElement.reset()
       if (preview) URL.revokeObjectURL(preview)
       setPreview(null)
     } catch (caught) {

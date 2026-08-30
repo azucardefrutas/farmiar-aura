@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, CircleStop, LayoutDashboard, LogOut, Menu, Pause, Play, Plus, Radio, RefreshCw, RotateCcw, Shield, SkipForward, Trophy, UserCheck, UserPlus, UserX, Users, X } from 'lucide-react'
+import { BookOpenCheck, Check, CircleStop, Clock3, LayoutDashboard, LogOut, Menu, Pause, Play, Plus, Radio, RefreshCw, RotateCcw, Shield, SkipForward, Sparkles, Trophy, UserCheck, UserPlus, UserX, Users, Wifi, WifiOff, X } from 'lucide-react'
 import { api } from '../lib/api'
+import { subscribeToAdminPresence, type OnlineAdministrator } from '../lib/adminPresence'
 import { subscribeToTournament } from '../lib/realtime'
 import { ensureVoterSession } from '../lib/supabase'
 import type { AdminDashboard, AdminSession, AuraMatch } from '../types'
@@ -24,6 +25,8 @@ export function AdminPage() {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [onlineAdministrators, setOnlineAdministrators] = useState<OnlineAdministrator[]>([])
+  const collaboratorKey = dashboard?.collaborators.map((item) => `${item.username}:${item.role}`).join('|') ?? ''
 
   const load = useCallback(async () => {
     if (!session) return
@@ -44,6 +47,20 @@ export function AdminPage() {
   }, [dashboard?.tournament.id, dashboard?.activeMatch?.id, load])
 
   useEffect(() => {
+    if (!dashboard || !session) return
+    let disposed = false
+    let cleanup: () => void = () => undefined
+    const allowedUsernames = new Set(dashboard.collaborators.map((item) => item.username))
+    void subscribeToAdminPresence(dashboard.tournament.id, session.user, allowedUsernames, setOnlineAdministrators)
+      .then((nextCleanup) => {
+        if (disposed) nextCleanup()
+        else cleanup = nextCleanup
+      })
+      .catch(() => { if (!disposed) setOnlineAdministrators([]) })
+    return () => { disposed = true; cleanup() }
+  }, [dashboard?.tournament.id, session?.user.username, session?.user.role, collaboratorKey])
+
+  useEffect(() => {
     if (!dashboard || dashboard.rounds.length > 0 || selected.size > 0) return
     setSelected(new Set(dashboard.contestants.map((contestant) => contestant.id)))
   }, [dashboard, selected.size])
@@ -52,6 +69,7 @@ export function AdminPage() {
     sessionStorage.removeItem(SESSION_KEY)
     setSession(null)
     setDashboard(null)
+    setOnlineAdministrators([])
   }
 
   async function login(event: FormEvent<HTMLFormElement>) {
@@ -71,10 +89,8 @@ export function AdminPage() {
     finally { setBusy('') }
   }
 
-  const bracketCountValid = selected.size >= 4 && selected.size <= 32
-  const pending = dashboard?.registrations.filter((item) => item.status === 'pending') ?? []
+  const bracketCountValid = selected.size >= 2 && selected.size <= 32
   const registrations = dashboard?.registrations ?? []
-  const matches = dashboard?.rounds.flatMap((round) => round.matches) ?? []
 
   if (!session) {
     return (
@@ -100,7 +116,7 @@ export function AdminPage() {
     <div className="admin-page min-h-dvh bg-arena text-primary">
       <header className="public-mobile-bar"><BrandMark /><button type="button" className="icon-action" onClick={() => setMenuOpen(true)} aria-label="Abrir menú administrativo"><Menu size={20} /></button></header>
       {menuOpen && <button type="button" className="nav-backdrop" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú" />}
-      <aside className={`admin-sidebar ${menuOpen ? 'is-open' : ''}`}><div className="flex items-center justify-between"><BrandMark /><button type="button" className="icon-action nav-close" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú"><X size={18} /></button></div><nav className="mt-9 grid gap-2"><a className="sidebar-link is-active" href="#resumen" onClick={() => setMenuOpen(false)}><LayoutDashboard size={18} /> Resumen</a><a className="sidebar-link" href="#inscripciones" onClick={() => setMenuOpen(false)}><UserPlus size={18} /> Inscripciones <span className="sidebar-count">{registrations.length}</span></a><a className="sidebar-link" href="#torneo" onClick={() => setMenuOpen(false)}><Trophy size={18} /> Llave y batallas</a><a className="sidebar-link" href="#equipo" onClick={() => setMenuOpen(false)}><Users size={18} /> Colaboradores</a></nav><div className="mt-auto space-y-3"><p className="text-xs text-muted">{session.user.username} · {session.user.role}</p><Link to="/live" className="secondary-action w-full"><Radio size={17} /> Pantalla Live</Link><button type="button" onClick={logout} className="secondary-action w-full"><LogOut size={17} /> Cerrar sesión</button></div></aside>
+      <aside className={`admin-sidebar ${menuOpen ? 'is-open' : ''}`}><div className="flex items-center justify-between"><BrandMark /><button type="button" className="icon-action nav-close" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú"><X size={18} /></button></div><nav className="mt-9 grid gap-2"><a className="sidebar-link is-active" href="#resumen" onClick={() => setMenuOpen(false)}><LayoutDashboard size={18} /> Resumen</a><a className="sidebar-link" href="#inscripciones" onClick={() => setMenuOpen(false)}><UserPlus size={18} /> Inscripciones <span className="sidebar-count">{registrations.length}</span></a><a className="sidebar-link" href="#reglas" onClick={() => setMenuOpen(false)}><BookOpenCheck size={18} /> Reglas</a><a className="sidebar-link" href="#torneo" onClick={() => setMenuOpen(false)}><Trophy size={18} /> Llave y batallas</a><a className="sidebar-link" href="#equipo" onClick={() => setMenuOpen(false)}><Users size={18} /> Colaboradores <span className="sidebar-count">{onlineAdministrators.length}/{dashboard?.collaborators.length ?? 0}</span></a></nav><div className="mt-auto space-y-3"><p className="text-xs text-muted">{session.user.username} · {session.user.role}</p><Link to="/live" className="secondary-action w-full"><Radio size={17} /> Pantalla Live</Link><button type="button" onClick={logout} className="secondary-action w-full"><LogOut size={17} /> Cerrar sesión</button></div></aside>
       <main id="resumen" className="admin-content page-shell py-8 sm:py-10">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div><p className="text-xs font-bold uppercase tracking-[.24em] text-fuchsia-700">Centro de control</p><h1 className="mt-2 font-display text-4xl font-extrabold tracking-[-.04em] text-primary">Batallas de Aura</h1><p className="mt-3 text-secondary">Todo cambio confirmado se publica a votantes y pantalla en vivo por WebSocket.</p></div>
@@ -116,7 +132,15 @@ export function AdminPage() {
               <AdminMetric label="Aura total" value={dashboard.summary.totalAura.toLocaleString('es-MX')} icon={<Radio />} />
             </section>
 
-            {dashboard.activeMatch && <ActiveMatchControl match={dashboard.activeMatch} busy={busy} onAction={(action, tieWinnerId) => perform(`match-${action}`, () => api.matchAction(session.token, dashboard.activeMatch!.id, action, tieWinnerId), `Batalla ${action === 'start' ? 'iniciada' : action === 'pause' ? 'pausada' : action === 'resume' ? 'reanudada' : 'finalizada'}.`)} />}
+            {dashboard.activeMatch && <ActiveMatchControl match={dashboard.activeMatch} auraPerVote={dashboard.tournament.rules.auraPerVote} busy={busy} onAction={(action, tieWinnerId) => perform(`match-${action}`, () => api.matchAction(session.token, dashboard.activeMatch!.id, action, tieWinnerId), `Batalla ${action === 'start' ? 'iniciada' : action === 'pause' ? 'pausada' : action === 'resume' ? 'reanudada' : 'finalizada'}.`)} />}
+
+            <TournamentRulesForm
+              key={`${dashboard.tournament.rules.durationSeconds}-${dashboard.tournament.rules.auraPerVote}`}
+              durationSeconds={dashboard.tournament.rules.durationSeconds}
+              auraPerVote={dashboard.tournament.rules.auraPerVote}
+              busy={busy === 'settings'}
+              onSubmit={(durationSeconds, auraPerVote) => perform('settings', () => api.updateTournamentSettings(session.token, dashboard.tournament.id, durationSeconds, auraPerVote), 'Reglas y duración actualizadas.')}
+            />
 
             <section id="inscripciones" className="admin-section scroll-mt-6">
               <div className="section-heading"><div><p className="eyebrow">Bandeja en vivo</p><h2>Personas inscritas</h2></div><span className="count-badge">{registrations.length}</span></div>
@@ -130,17 +154,25 @@ export function AdminPage() {
             </section>
 
             <section id="torneo" className="admin-section scroll-mt-6">
-              <div className="section-heading"><div><p className="eyebrow">Torneo</p><h2>Participantes y llave</h2></div>{dashboard.tournament.status === 'registration' ? <button type="button" className="primary-action" disabled={dashboard.contestants.length < 4 || Boolean(busy)} onClick={() => { if (window.confirm(`¿Cerrar inscripciones con ${dashboard.contestants.length} participantes y generar la llave?`)) void perform('close-registration', () => api.closeRegistrations(session.token, dashboard.tournament.id), 'Inscripciones cerradas y llave generada.') }}><Trophy size={17} /> Cerrar inscripciones ({dashboard.contestants.length})</button> : <span className={`status-pill status-${dashboard.tournament.status}`}><span />{dashboard.tournament.status}</span>}</div>
-              <p className="mb-5 text-sm text-secondary">Con 4 a 32 personas, el sistema sortea siembras, distribuye descansos cuando hacen falta y crea final y tercer lugar. La selección manual queda disponible para reorganizar antes de iniciar.</p>
+              <div className="section-heading"><div><p className="eyebrow">Torneo</p><h2>Participantes y llave</h2></div>{dashboard.tournament.status === 'registration' ? <button type="button" className="primary-action" disabled={Boolean(busy)} onClick={() => { if (window.confirm(`¿Cerrar inscripciones con ${dashboard.contestants.length} participantes y generar la llave?`)) void perform('close-registration', () => api.closeRegistrations(session.token, dashboard.tournament.id), 'Inscripciones cerradas y llave generada.') }}><Trophy size={17} /> Cerrar inscripciones ({dashboard.contestants.length})</button> : <span className={`status-pill status-${dashboard.tournament.status}`}><span />{dashboard.tournament.status}</span>}</div>
+              <p className="mb-5 text-sm text-secondary">Desde 2 hasta 32 personas, el sistema sortea siembras, distribuye descansos y genera la final. Con 4 o más también crea la batalla por tercer lugar. La selección manual queda disponible antes de iniciar.</p>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{dashboard.contestants.map((contestant) => <label key={contestant.id} className="select-contestant"><input type="checkbox" checked={selected.has(contestant.id)} onChange={() => setSelected((current) => { const next = new Set(current); next.has(contestant.id) ? next.delete(contestant.id) : next.add(contestant.id); return next })} /><span>{contestant.name}<small>{contestant.program}</small></span></label>)}</div>
               <div className="mt-5 flex justify-end"><button type="button" className="secondary-action" disabled={!bracketCountValid || Boolean(busy)} onClick={() => void perform('bracket', () => api.generateBracket(session.token, dashboard.tournament.id, [...selected]), 'Llave regenerada.')}>Regenerar con selección ({selected.size})</button></div>
               {dashboard.rounds.length > 0 && <div className="mt-8 overflow-x-auto"><div className="flex min-w-max gap-5">{dashboard.rounds.map((round) => <div key={round.id} className="w-80"><p className="eyebrow mb-3">{round.name}</p>{round.matches.map((match) => <MatchControl key={match.id} match={match} busy={busy} onAction={(action) => perform(`${match.id}-${action}`, () => api.matchAction(session.token, match.id, action), 'Estado de batalla actualizado.')} />)}</div>)}</div></div>}
               {dashboard.standings.length > 0 && <div className="mt-9"><div className="section-heading"><div><p className="eyebrow">Resultados</p><h2>Tabla de posiciones</h2></div></div><StandingsTable standings={dashboard.standings} placements={dashboard.placements} /></div>}
             </section>
 
-            <section id="equipo" className="admin-section grid scroll-mt-6 gap-8 lg:grid-cols-2">
-              <div><div className="section-heading"><div><p className="eyebrow">Equipo</p><h2>Agregar administrador</h2></div></div><p className="mb-4 text-sm leading-6 text-secondary">El nuevo integrante podrá revisar solicitudes, controlar batallas y administrar el torneo contigo.</p><CollaboratorForm busy={busy === 'collaborator'} onSubmit={(username, password) => perform('collaborator', () => api.addCollaborator(session.token, username, password), 'Administrador colaborativo agregado.')} /></div>
-              <div><div className="section-heading"><div><p className="eyebrow text-red-700">Seguridad</p><h2>Reiniciar torneo</h2></div></div><p className="text-sm leading-6 text-secondary">Elimina bracket y votos, conserva participantes aprobados y vuelve a registro.</p>{session.user.role === 'admin' && <button type="button" className="danger-action mt-5" disabled={Boolean(busy)} onClick={() => { if (window.confirm('¿Reiniciar bracket y eliminar todos los votos?')) void perform('reset', () => api.reset(session.token, dashboard.tournament.id), 'Torneo reiniciado.') }}><RotateCcw size={17} /> Reiniciar torneo</button>}</div>
+            <section id="equipo" className="admin-section scroll-mt-6">
+              <div className="section-heading"><div><p className="eyebrow">Presencia en tiempo real</p><h2>Equipo administrador</h2></div><span className="presence-total"><Wifi size={16} /> En línea {onlineAdministrators.length}/{dashboard.collaborators.length}</span></div>
+              <p className="mb-5 text-sm text-secondary">El contador usa conexiones activas de Supabase Realtime Presence. No se calcula ni se simula.</p>
+              <div className="collaborator-list">{dashboard.collaborators.map((collaborator) => {
+                const isOnline = onlineAdministrators.some((item) => item.username === collaborator.username)
+                return <article key={collaborator.username} className="collaborator-row"><span className={`presence-dot ${isOnline ? 'is-online' : ''}`} aria-hidden="true" /> <div><strong>{collaborator.username}</strong><small>{collaborator.role === 'admin' ? 'Administrador' : 'Colaborador'}</small></div><span className="presence-label">{isOnline ? <><Wifi size={14} /> En línea</> : <><WifiOff size={14} /> Fuera de línea</>}</span></article>
+              })}</div>
+              <div className="mt-8 grid gap-8 border-t border-slate-300/60 pt-7 lg:grid-cols-2">
+                <div><div className="section-heading"><div><p className="eyebrow">Equipo</p><h2>Agregar administrador</h2></div></div><p className="mb-4 text-sm leading-6 text-secondary">El nuevo integrante podrá revisar solicitudes, controlar batallas y administrar el torneo contigo.</p><CollaboratorForm busy={busy === 'collaborator'} onSubmit={(username, password) => perform('collaborator', () => api.addCollaborator(session.token, username, password), 'Administrador colaborativo agregado.')} /></div>
+                <div><div className="section-heading"><div><p className="eyebrow text-red-700">Seguridad</p><h2>Reiniciar torneo</h2></div></div><p className="text-sm leading-6 text-secondary">Elimina bracket y votos, conserva participantes aprobados y vuelve a registro.</p>{session.user.role === 'admin' && <button type="button" className="danger-action mt-5" disabled={Boolean(busy)} onClick={() => { if (window.confirm('¿Reiniciar bracket y eliminar todos los votos?')) void perform('reset', () => api.reset(session.token, dashboard.tournament.id), 'Torneo reiniciado.') }}><RotateCcw size={17} /> Reiniciar torneo</button>}</div>
+              </div>
             </section>
           </>
         )}
@@ -153,9 +185,13 @@ function AdminMetric({ label, value, icon }: { label: string; value: string | nu
   return <div className="bg-white/40 p-6"><span className="text-fuchsia-700">{icon}</span><strong className="mt-4 block font-display text-3xl font-extrabold tabular-nums text-primary">{value}</strong><span className="mt-1 block text-sm text-secondary">{label}</span></div>
 }
 
-function ActiveMatchControl({ match, busy, onAction }: { match: AuraMatch; busy: string; onAction: (action: 'start' | 'pause' | 'resume' | 'finish', tieWinnerId?: string) => void }) {
+function ActiveMatchControl({ match, auraPerVote, busy, onAction }: { match: AuraMatch; auraPerVote: number; busy: string; onAction: (action: 'start' | 'pause' | 'resume' | 'finish', tieWinnerId?: string) => void }) {
   const tied = match.votesA === match.votesB
-  return <section className="admin-section live-control"><div><p className="eyebrow">Batalla actual · {match.status}</p><h2 className="mt-2 font-display text-3xl font-extrabold text-primary">{match.contestantA?.name ?? 'Por definir'} <span className="text-tertiary">vs</span> {match.contestantB?.name ?? 'Por definir'}</h2><p className="mt-3 text-secondary">{match.votesA} – {match.votesB} votos · {(match.totalVotes * 100).toLocaleString('es-MX')} Aura</p></div><div className="mt-6 flex flex-wrap items-center gap-3"><div className="timer-panel mr-auto"><Countdown endsAt={match.endsAt} pausedSeconds={match.remainingSeconds} status={match.status} /></div>{match.status === 'scheduled' && <button className="primary-action" disabled={Boolean(busy)} onClick={() => onAction('start')}><Play size={17} /> Iniciar</button>}{match.status === 'live' && <button className="secondary-action" disabled={Boolean(busy)} onClick={() => onAction('pause')}><Pause size={17} /> Pausar</button>}{match.status === 'paused' && <button className="primary-action" disabled={Boolean(busy)} onClick={() => onAction('resume')}><Play size={17} /> Reanudar</button>}{['live', 'paused'].includes(match.status) && <button className="danger-action" disabled={Boolean(busy)} onClick={() => { if (tied) { const winner = window.prompt(`Empate. Escribe A para ${match.contestantA?.name} o B para ${match.contestantB?.name}`); onAction('finish', winner?.toUpperCase() === 'A' ? match.contestantA?.id : winner?.toUpperCase() === 'B' ? match.contestantB?.id : undefined) } else onAction('finish') }}><CircleStop size={17} /> Finalizar</button>}</div></section>
+  return <section className="admin-section live-control"><div><p className="eyebrow">Batalla actual · {match.status}</p><h2 className="mt-2 font-display text-3xl font-extrabold text-primary">{match.contestantA?.name ?? 'Por definir'} <span className="text-tertiary">vs</span> {match.contestantB?.name ?? 'Por definir'}</h2><p className="mt-3 text-secondary">{match.votesA} – {match.votesB} votos · {(match.totalVotes * auraPerVote).toLocaleString('es-MX')} Aura</p></div><div className="mt-6 flex flex-wrap items-center gap-3"><div className="timer-panel mr-auto"><Countdown endsAt={match.endsAt} pausedSeconds={match.remainingSeconds} status={match.status} /></div>{match.status === 'scheduled' && <button className="primary-action" disabled={Boolean(busy)} onClick={() => onAction('start')}><Play size={17} /> Iniciar</button>}{match.status === 'live' && <button className="secondary-action" disabled={Boolean(busy)} onClick={() => onAction('pause')}><Pause size={17} /> Pausar</button>}{match.status === 'paused' && <button className="primary-action" disabled={Boolean(busy)} onClick={() => onAction('resume')}><Play size={17} /> Reanudar</button>}{['live', 'paused'].includes(match.status) && <button className="danger-action" disabled={Boolean(busy)} onClick={() => { if (tied) { const winner = window.prompt(`Empate. Escribe A para ${match.contestantA?.name} o B para ${match.contestantB?.name}`); onAction('finish', winner?.toUpperCase() === 'A' ? match.contestantA?.id : winner?.toUpperCase() === 'B' ? match.contestantB?.id : undefined) } else onAction('finish') }}><CircleStop size={17} /> Finalizar</button>}</div></section>
+}
+
+function TournamentRulesForm({ durationSeconds, auraPerVote, busy, onSubmit }: { durationSeconds: number; auraPerVote: number; busy: boolean; onSubmit: (durationSeconds: number, auraPerVote: number) => Promise<void> }) {
+  return <section id="reglas" className="admin-section scroll-mt-6"><div className="section-heading"><div><p className="eyebrow">Configuración activa</p><h2>Reglas y duración</h2></div><span className="status-pill status-live"><span /> Guardadas en DB</span></div><div className="rules-layout"><form className="rules-form" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void onSubmit(Number(form.get('durationSeconds')), Number(form.get('auraPerVote'))) }}><label><span className="field-label">Tiempo por batalla</span><span className="field-with-unit"><Clock3 size={17} /><input className="field-input" name="durationSeconds" type="number" min={30} max={600} step={10} defaultValue={durationSeconds} required /><small>segundos</small></span></label><label><span className="field-label">Aura por voto</span><span className="field-with-unit"><Sparkles size={17} /><input className="field-input" name="auraPerVote" type="number" min={10} max={1000} step={10} defaultValue={auraPerVote} required /><small>Aura</small></span></label><button className="secondary-action justify-center" disabled={busy}>{busy ? 'Guardando...' : 'Guardar reglas'}</button></form><div className="rules-summary"><p><Check size={16} /> Un voto confirmado por persona en cada batalla.</p><p><Check size={16} /> El reloj usa inicio y fin reales; cada celular lo calcula localmente.</p><p><Check size={16} /> Gana quien tenga más votos; un empate requiere decisión administrativa.</p><p><Check size={16} /> Eliminación directa, final y tercer lugar cuando participan 4 o más.</p></div></div></section>
 }
 
 function MatchControl({ match, busy, onAction }: { match: AuraMatch; busy: string; onAction: (action: 'start' | 'pause' | 'resume' | 'finish') => Promise<void> }) {

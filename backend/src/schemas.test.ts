@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bracketSchema, registrationSchema, voteSchema } from './schemas.js'
+import { bracketSchema, registrationSchema, tournamentSettingsSchema, voteSchema } from './schemas.js'
 
 describe('request schemas', () => {
   it('rejects extra vote fields and malformed identifiers', () => {
@@ -24,5 +24,13 @@ describe('request schemas', () => {
   it('rejects repeated contestants in a bracket', () => {
     const id = '7d98c0d2-655d-47ca-b499-4292ea6bf1a8'
     expect(() => bracketSchema.parse({ contestantIds: [id, id] })).toThrow()
+  })
+
+  it('accepts a two-person final and validates tournament rules', () => {
+    const first = '7d98c0d2-655d-47ca-b499-4292ea6bf1a8'
+    const second = '9cb08c0c-65e3-47bc-a31b-6353959d14c4'
+    expect(bracketSchema.parse({ contestantIds: [first, second] }).contestantIds).toHaveLength(2)
+    expect(tournamentSettingsSchema.parse({ durationSeconds: 90, auraPerVote: 100 })).toEqual({ durationSeconds: 90, auraPerVote: 100 })
+    expect(() => tournamentSettingsSchema.parse({ durationSeconds: 10, auraPerVote: 100 })).toThrow()
   })
 })

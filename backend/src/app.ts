@@ -29,7 +29,7 @@ export function createApp(config: AppConfig) {
       if (!origin || allowedOrigins.has(origin)) return callback(null, true)
       return callback(new Error('Origen no permitido'))
     },
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     maxAge: 86400,
   }))

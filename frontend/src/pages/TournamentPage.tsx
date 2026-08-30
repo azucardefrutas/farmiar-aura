@@ -47,6 +47,7 @@ export function TournamentPage() {
   }
 
   const match = snapshot?.activeMatch
+  const auraPerVote = snapshot?.tournament.rules.auraPerVote ?? 100
   const hasVoted = Boolean(match && snapshot?.viewerVote?.matchId === match.id)
   const isLive = match?.status === 'live'
 
@@ -63,7 +64,7 @@ export function TournamentPage() {
               {match && <span className="text-xs font-bold uppercase tracking-[.2em] text-tertiary">Ronda {match.roundNumber} · Batalla {match.position}</span>}
             </div>
             <h1 className="mt-4 max-w-3xl font-display text-3xl font-extrabold leading-[1.04] tracking-[-.04em] text-primary sm:text-5xl">{match ? 'La batalla del momento' : 'La arena está por abrir'}</h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-secondary">Un voto por batalla. Cada voto confirmado vale 100 Aura y el ganador avanza automáticamente.</p>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-secondary">Un voto por batalla. Cada voto confirmado vale {auraPerVote} Aura y el ganador avanza automáticamente.</p>
           </div>
           {match && <div className="timer-panel"><span className="text-xs font-bold uppercase tracking-[.2em] text-tertiary">Tiempo restante</span><Countdown endsAt={match.endsAt} pausedSeconds={match.remainingSeconds} status={match.status} onComplete={() => void load()} /></div>}
         </section>
@@ -82,9 +83,9 @@ export function TournamentPage() {
               <div className="mt-3 flex justify-between text-xs font-bold uppercase tracking-[.16em] text-tertiary"><span>{match.contestantA.name}</span><span>{match.totalVotes} votos</span><span>{match.contestantB.name}</span></div>
             </div>
             <div className="relative grid gap-5 md:grid-cols-2">
-              <BattleContestant contestant={match.contestantA} aura={match.auraA} votes={match.votesA} side="amber" canVote={isLive && !hasVoted} selected={snapshot?.viewerVote?.contestantId === match.contestantA.id} busy={busyContestant === match.contestantA.id} onVote={() => void vote(match.contestantA!.id)} />
+              <BattleContestant contestant={match.contestantA} aura={match.auraA} votes={match.votesA} auraPerVote={auraPerVote} side="amber" canVote={isLive && !hasVoted} selected={snapshot?.viewerVote?.contestantId === match.contestantA.id} busy={busyContestant === match.contestantA.id} onVote={() => void vote(match.contestantA!.id)} />
               <div className="versus-mark" aria-hidden="true">VS</div>
-              <BattleContestant contestant={match.contestantB} aura={match.auraB} votes={match.votesB} side="indigo" canVote={isLive && !hasVoted} selected={snapshot?.viewerVote?.contestantId === match.contestantB.id} busy={busyContestant === match.contestantB.id} onVote={() => void vote(match.contestantB!.id)} />
+              <BattleContestant contestant={match.contestantB} aura={match.auraB} votes={match.votesB} auraPerVote={auraPerVote} side="indigo" canVote={isLive && !hasVoted} selected={snapshot?.viewerVote?.contestantId === match.contestantB.id} busy={busyContestant === match.contestantB.id} onVote={() => void vote(match.contestantB!.id)} />
             </div>
           </section>
         ) : (

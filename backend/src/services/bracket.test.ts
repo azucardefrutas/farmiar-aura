@@ -19,13 +19,26 @@ describe('bracket seeding', () => {
   })
 
   it('selects the next supported power of two', () => {
+    expect(nextPowerOfTwo(2)).toBe(2)
+    expect(nextPowerOfTwo(3)).toBe(4)
     expect(nextPowerOfTwo(4)).toBe(4)
     expect(nextPowerOfTwo(6)).toBe(8)
     expect(nextPowerOfTwo(17)).toBe(32)
   })
 
   it('rejects unsafe bracket sizes', () => {
-    expect(() => buildBracketSlots(['a', 'b', 'c'])).toThrow(/4 participantes/)
+    expect(() => buildBracketSlots(['a'])).toThrow(/2 participantes/)
     expect(() => buildBracketSlots(Array.from({ length: 33 }, (_, index) => `${index}`))).toThrow(/32 participantes/)
+  })
+
+  it('allows a direct final with two entrants', () => {
+    expect(buildBracketSlots(['a', 'b'], () => 0)).toEqual(['b', 'a'])
+  })
+
+  it('creates one bye for three entrants', () => {
+    const slots = buildBracketSlots(['a', 'b', 'c'], () => 0)
+    expect(slots).toHaveLength(4)
+    expect(slots.filter(Boolean)).toHaveLength(3)
+    expect(slots.filter((slot) => slot === null)).toHaveLength(1)
   })
 })

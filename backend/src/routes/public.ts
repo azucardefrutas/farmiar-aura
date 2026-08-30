@@ -40,6 +40,13 @@ function extensionFor(mime: string) {
   return mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg'
 }
 
+function hasValidImageSignature(buffer: Buffer, mime: string) {
+  if (mime === 'image/jpeg') return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
+  if (mime === 'image/png') return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  if (mime === 'image/webp') return buffer.length >= 12 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  return false
+}
+
 async function optionalVoterId(supabase: SupabaseAdmin, authorization?: string) {
   const [scheme, token] = authorization?.split(' ') ?? []
   if (scheme !== 'Bearer' || !token) return undefined
@@ -82,6 +89,9 @@ export function createPublicRouter(supabase: SupabaseAdmin) {
       let photoPath: string | null = null
       let photoUrl: string | null = null
       if (req.file) {
+        if (!hasValidImageSignature(req.file.buffer, req.file.mimetype)) {
+          return res.status(400).json({ error: 'El archivo no contiene una imagen JPG, PNG o WebP válida.' })
+        }
         photoPath = `${tournament.id}/${registrationId}.${extensionFor(req.file.mimetype)}`
         const uploaded = await supabase.storage.from('participant-photos').upload(photoPath, req.file.buffer, {
           contentType: req.file.mimetype, cacheControl: '31536000', upsert: false,

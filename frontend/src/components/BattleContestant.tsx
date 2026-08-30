@@ -5,6 +5,7 @@ interface Props {
   contestant: Contestant
   aura: number
   votes: number
+  auraPerVote: number
   side: 'amber' | 'indigo'
   canVote: boolean
   selected: boolean
@@ -13,7 +14,7 @@ interface Props {
   readOnly?: boolean
 }
 
-export function BattleContestant({ contestant, aura, votes, side, canVote, selected, busy, onVote, readOnly }: Props) {
+export function BattleContestant({ contestant, aura, votes, auraPerVote, side, canVote, selected, busy, onVote, readOnly }: Props) {
   const initials = contestant.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
   return (
     <article className={`battle-card battle-card-${side}`}>
@@ -32,7 +33,7 @@ export function BattleContestant({ contestant, aura, votes, side, canVote, selec
         {!readOnly && (
           <button type="button" onClick={onVote} disabled={!canVote || busy} aria-busy={busy} className="primary-action mt-4 w-full">
             {selected ? <Check size={19} /> : <Sparkles size={19} />}
-            {busy ? 'Confirmando...' : selected ? 'Tu voto' : canVote ? '+100 Aura' : 'Votación cerrada'}
+            {busy ? 'Confirmando...' : selected ? 'Tu voto' : canVote ? `+${auraPerVote} Aura` : 'Votación cerrada'}
           </button>
         )}
       </div>

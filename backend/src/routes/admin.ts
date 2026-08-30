@@ -5,7 +5,7 @@ import { rateLimit } from 'express-rate-limit'
 import type { AppConfig } from '../config.js'
 import type { SupabaseAdmin } from '../lib/supabase.js'
 import { requireAdmin } from '../middleware/auth.js'
-import { bracketSchema, collaboratorSchema, loginSchema, matchActionSchema, reviewSchema, uuidSchema } from '../schemas.js'
+import { bracketSchema, collaboratorSchema, loginSchema, matchActionSchema, reviewSchema, tournamentSettingsSchema, uuidSchema } from '../schemas.js'
 import { getTournamentSnapshot } from '../services/tournament.js'
 import { buildBracketSlots } from '../services/bracket.js'
 
@@ -17,6 +17,7 @@ async function audit(supabase: SupabaseAdmin, adminId: string, action: string, e
 export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig) {
   const router = Router()
   const loginLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Demasiados intentos. Espera 15 minutos.' } })
+  const actionLimiter = rateLimit({ windowMs: 60_000, limit: 45, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Demasiadas acciones administrativas. Espera un minuto.' } })
   const authenticated = requireAdmin(config)
   const onlyAdmin = requireAdmin(config, 'admin')
 
@@ -37,13 +38,42 @@ export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig) {
   router.get('/dashboard', authenticated, async (_req, res, next) => {
     try {
       const snapshot = await getTournamentSnapshot(supabase)
-      const [registrations, logs] = await Promise.all([
+      const [registrations, logs, collaborators] = await Promise.all([
         supabase.from('participant_registrations').select('id,nombre,apellidos,edad,carrera,grupo,alias,instagram,foto_url,status,creado_en').eq('tournament_id', snapshot.tournament.id).order('creado_en', { ascending: false }),
         supabase.from('audit_logs').select('id,action,entity_type,entity_id,metadata,creado_en,administrator_id').order('creado_en', { ascending: false }).limit(30),
+        supabase.from('administrators').select('usuario,rol,activo,creado_en').eq('activo', true).order('creado_en'),
       ])
       if (registrations.error) throw registrations.error
       if (logs.error) throw logs.error
-      return res.json({ ...snapshot, registrations: registrations.data, auditLogs: logs.data })
+      if (collaborators.error) throw collaborators.error
+      return res.json({
+        ...snapshot,
+        registrations: registrations.data,
+        auditLogs: logs.data,
+        collaborators: (collaborators.data ?? []).map((item) => ({
+          username: item.usuario,
+          role: item.rol,
+          active: item.activo,
+          createdAt: item.creado_en,
+        })),
+      })
+    } catch (error) { next(error) }
+  })
+
+  router.use(actionLimiter)
+
+  router.patch('/tournaments/:id/settings', authenticated, async (req, res, next) => {
+    try {
+      const tournamentId = uuidSchema.parse(req.params.id)
+      const input = tournamentSettingsSchema.parse(req.body)
+      const { data, error } = await supabase.rpc('update_tournament_settings', {
+        p_tournament_id: tournamentId,
+        p_duration_seconds: input.durationSeconds,
+        p_aura_per_vote: input.auraPerVote,
+      })
+      if (error) return res.status(400).json({ error: error.message })
+      await audit(supabase, req.administrator!.id, 'tournament.settings.updated', 'tournament', tournamentId, input)
+      return res.json({ success: true, settings: data, message: 'Reglas del torneo actualizadas.' })
     } catch (error) { next(error) }
   })
 

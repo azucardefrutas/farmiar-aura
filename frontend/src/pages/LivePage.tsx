@@ -20,6 +20,7 @@ export function LivePage() {
   useEffect(() => snapshot ? subscribeToTournament(snapshot.tournament.id, snapshot.activeMatch?.id, () => void load()) : undefined, [snapshot?.tournament.id, snapshot?.activeMatch?.id, load])
 
   const match = snapshot?.activeMatch
+  const auraPerVote = snapshot?.tournament.rules.auraPerVote ?? 100
   return (
     <main className="live-stage min-h-dvh text-primary">
       <header className="flex items-center justify-between gap-4 p-5 sm:p-8"><BrandMark /><div className="flex items-center gap-3"><span className={`status-pill status-${match?.status ?? 'scheduled'}`}><span />{match?.status === 'live' ? 'En vivo' : match?.status === 'paused' ? 'Pausada' : 'En espera'}</span><Link to="/" className="secondary-action">Volver</Link></div></header>
@@ -29,8 +30,8 @@ export function LivePage() {
           <div className="mb-8 text-center"><p className="text-sm font-bold uppercase tracking-[.3em] text-fuchsia-700">Ronda {match.roundNumber} · Batalla {match.position}</p><div className="mt-4"><Countdown endsAt={match.endsAt} pausedSeconds={match.remainingSeconds} status={match.status} large onComplete={() => void load()} /></div></div>
           <ScoreRail votesA={match.votesA} votesB={match.votesB} />
           <div className="mt-7 grid gap-5 md:grid-cols-2">
-            <BattleContestant contestant={match.contestantA} aura={match.auraA} votes={match.votesA} side="amber" canVote={false} selected={false} busy={false} onVote={() => undefined} readOnly />
-            <BattleContestant contestant={match.contestantB} aura={match.auraB} votes={match.votesB} side="indigo" canVote={false} selected={false} busy={false} onVote={() => undefined} readOnly />
+            <BattleContestant contestant={match.contestantA} aura={match.auraA} votes={match.votesA} auraPerVote={auraPerVote} side="amber" canVote={false} selected={false} busy={false} onVote={() => undefined} readOnly />
+            <BattleContestant contestant={match.contestantB} aura={match.auraB} votes={match.votesB} auraPerVote={auraPerVote} side="indigo" canVote={false} selected={false} busy={false} onVote={() => undefined} readOnly />
           </div>
           <p className="mt-6 text-center text-sm font-bold uppercase tracking-[.2em] text-secondary"><Radio className="mr-2 inline" size={17} /> {match.totalVotes} votos confirmados en tiempo real</p>
         </div>

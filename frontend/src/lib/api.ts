@@ -52,6 +52,11 @@ export const api = {
   closeRegistrations(token: string, tournamentId: string) {
     return request(`/admin/tournaments/${tournamentId}/registrations/close`, { method: 'POST', headers: adminHeaders(token) })
   },
+  updateTournamentSettings(token: string, tournamentId: string, durationSeconds: number, auraPerVote: number) {
+    return request<{ success: true; message: string }>(`/admin/tournaments/${tournamentId}/settings`, {
+      method: 'PATCH', headers: adminHeaders(token), body: JSON.stringify({ durationSeconds, auraPerVote }),
+    })
+  },
   matchAction(token: string, matchId: string, action: 'start' | 'pause' | 'resume' | 'finish', tieWinnerId?: string) {
     return request(`/admin/matches/${matchId}/action`, { method: 'POST', headers: adminHeaders(token), body: JSON.stringify({ action, tieWinnerId }) })
   },

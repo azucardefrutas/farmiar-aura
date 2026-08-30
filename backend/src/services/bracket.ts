@@ -28,7 +28,7 @@ function secureShuffle<T>(values: T[], pick: (maximum: number) => number) {
 }
 
 export function buildBracketSlots(contestantIds: string[], pick: (maximum: number) => number = randomInt): Array<string | null> {
-  if (contestantIds.length < 4) throw new Error('Se requieren al menos 4 participantes.')
+  if (contestantIds.length < 2) throw new Error('Se requieren al menos 2 participantes.')
   if (contestantIds.length > 32) throw new Error('La llave admite hasta 32 participantes.')
   if (new Set(contestantIds).size !== contestantIds.length) throw new Error('No se permiten participantes repetidos.')
 

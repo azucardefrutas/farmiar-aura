@@ -35,8 +35,13 @@ export const reviewSchema = z.object({
 }).strict()
 
 export const bracketSchema = z.object({
-  contestantIds: z.array(uuidSchema).min(4).max(32)
+  contestantIds: z.array(uuidSchema).min(2).max(32)
     .refine((ids) => new Set(ids).size === ids.length, 'No se permiten participantes repetidos'),
+}).strict()
+
+export const tournamentSettingsSchema = z.object({
+  durationSeconds: z.coerce.number().int().min(30).max(600),
+  auraPerVote: z.coerce.number().int().min(10).max(1000),
 }).strict()
 
 export const matchActionSchema = z.discriminatedUnion('action', [

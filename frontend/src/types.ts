@@ -39,7 +39,14 @@ export interface Round {
 }
 
 export interface TournamentSnapshot {
-  tournament: { id: string; name: string; slug: string; status: TournamentStatus; updatedAt: string }
+  tournament: {
+    id: string
+    name: string
+    slug: string
+    status: TournamentStatus
+    updatedAt: string
+    rules: { durationSeconds: number; auraPerVote: number }
+  }
   contestants: Contestant[]
   rounds: Round[]
   activeMatch: AuraMatch | null
@@ -74,4 +81,5 @@ export interface AdminSession {
 export interface AdminDashboard extends TournamentSnapshot {
   registrations: Registration[]
   auditLogs: Array<{ id: number; action: string; entity_type: string; creado_en: string }>
+  collaborators: Array<{ username: string; role: 'admin' | 'collaborator'; active: boolean; createdAt: string }>
 }

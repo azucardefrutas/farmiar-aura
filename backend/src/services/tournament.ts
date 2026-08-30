@@ -23,10 +23,11 @@ function contestantView(row: Row): ContestantView {
 export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: string) {
   const { data: tournament, error: tournamentError } = await supabase
     .from('tournaments')
-    .select('id,nombre,slug,status,actualizado_en')
+    .select('id,nombre,slug,status,actualizado_en,match_duration_seconds,aura_per_vote')
     .eq('slug', 'batallas-de-aura')
     .single()
   if (tournamentError) throw tournamentError
+  const auraPerVote = tournament.aura_per_vote
 
   const { data: expiredMatches, error: expiredError } = await supabase
     .from('matches')
@@ -87,8 +88,8 @@ export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: s
       votesA,
       votesB,
       totalVotes: votesA + votesB,
-      auraA: votesA * 100,
-      auraB: votesB * 100,
+      auraA: votesA * auraPerVote,
+      auraB: votesB * auraPerVote,
     }
   })
 
@@ -138,12 +139,34 @@ export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: s
     if (third) { placements.push({ place: 3, contestant: third }); standingMap.get(third.id)!.placement = 3 }
     if (fourth) standingMap.get(fourth.id)!.placement = 4
   }
+  if (!thirdPlaceMatch && contestants.length === 3 && finalMatch?.status === 'finished') {
+    const semifinal = matches.find((match) =>
+      match.roundNumber === finalRoundNumber - 1
+      && match.matchType === 'knockout'
+      && match.status === 'finished'
+      && match.winnerId,
+    )
+    if (semifinal?.winnerId) {
+      const third = semifinal.contestantA?.id === semifinal.winnerId ? semifinal.contestantB : semifinal.contestantA
+      if (third) {
+        placements.push({ place: 3, contestant: third })
+        standingMap.get(third.id)!.placement = 3
+      }
+    }
+  }
   const standings = [...standingMap.values()].sort((left, right) =>
     (left.placement ?? 99) - (right.placement ?? 99) || right.wins - left.wins || right.votes - left.votes || left.contestant.name.localeCompare(right.contestant.name, 'es')
   )
 
   return {
-    tournament: { id: tournament.id, name: tournament.nombre, slug: tournament.slug, status: tournament.status, updatedAt: tournament.actualizado_en },
+    tournament: {
+      id: tournament.id,
+      name: tournament.nombre,
+      slug: tournament.slug,
+      status: tournament.status,
+      updatedAt: tournament.actualizado_en,
+      rules: { durationSeconds: tournament.match_duration_seconds, auraPerVote },
+    },
     contestants,
     rounds: (roundsResult.data ?? []).map((round) => ({
       id: round.id,
@@ -155,6 +178,6 @@ export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: s
     viewerVote,
     placements,
     standings,
-    summary: { contestants: contestants.length, votes: totalVotes, totalAura: totalVotes * 100 },
+    summary: { contestants: contestants.length, votes: totalVotes, totalAura: totalVotes * auraPerVote },
   }
 }
