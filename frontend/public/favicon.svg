@@ -1,5 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#08070c"/>
-  <path d="M38 6 15 36h14l-3 22 23-32H35z" fill="#f5aa22"/>
-  <path d="m38 6-3 20h14z" fill="#7064ff" opacity=".9"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title description">
+  <title id="title">Pou con mewing</title>
+  <desc id="description">Icono vectorial de Pou con expresión de mewing</desc>
+  <defs>
+    <linearGradient id="pou" x1="36" y1="18" x2="92" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c89961"/>
+      <stop offset="1" stop-color="#a9723f"/>
+    </linearGradient>
+  </defs>
+  <path d="M64 7C43 7 27 23 21 44c-6 19-9 40-1 58 7 15 23 21 44 21s37-6 44-21c8-18 5-39-1-58C101 23 85 7 64 7Z" fill="url(#pou)" stroke="#744820" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M31 49c9-8 19-8 29 2M97 49c-9-8-19-8-29 2" fill="none" stroke="#2a170d" stroke-width="7" stroke-linecap="round"/>
+  <path d="M31 60c8-6 19-5 28 2-6 9-21 10-28-2Zm66 0c-8-6-19-5-28 2 6 9 21 10 28-2Z" fill="#fff" stroke="#21130d" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M48 59c1 5-1 9-5 11-4-2-6-6-5-11h10Zm32 0c-1 5 1 9 5 11 4-2 6-6 5-11H80Z" fill="#17100c"/>
+  <path d="M29 78c3 4 5 9 5 15M99 78c-3 4-5 9-5 15" fill="none" stroke="#75441f" stroke-width="4" stroke-linecap="round"/>
+  <path d="M45 86c12 3 26 3 38 0" fill="none" stroke="#21130d" stroke-width="4" stroke-linecap="round"/>
+  <path d="M57 99h14" stroke="#75441f" stroke-width="5" stroke-linecap="round"/>
 </svg>

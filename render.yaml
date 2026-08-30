@@ -19,7 +19,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: FRONTEND_URL
-        value: https://farmear-aura-azucardefrutas-projects.vercel.app
+        value: https://farmiar-aura-frontend.vercel.app,https://farmiar-aura-admin.vercel.app
       - key: TRUST_PROXY_HOPS
         value: "1"
       - key: SUPABASE_URL

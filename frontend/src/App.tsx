@@ -6,9 +6,10 @@ const TournamentPage = lazy(() => import('./pages/TournamentPage').then((module)
 const LivePage = lazy(() => import('./pages/LivePage').then((module) => ({ default: module.LivePage })))
 
 const configuredAdminUrl = (import.meta.env.VITE_ADMIN_URL as string | undefined)?.replace(/\/$/, '')
+const isDedicatedAdminBuild = import.meta.env.VITE_ADMIN_MODE === 'true'
 
 function AdminEntry() {
-  const isAdminHost = window.location.hostname.toLowerCase().startsWith('admin-aura.')
+  const isAdminHost = isDedicatedAdminBuild || window.location.hostname.toLowerCase().startsWith('admin-aura.')
 
   if (configuredAdminUrl && !isAdminHost) {
     window.location.replace(`${configuredAdminUrl}/admin`)
@@ -19,7 +20,7 @@ function AdminEntry() {
 }
 
 export default function App() {
-  const isAdminHost = window.location.hostname.toLowerCase().startsWith('admin-aura.')
+  const isAdminHost = isDedicatedAdminBuild || window.location.hostname.toLowerCase().startsWith('admin-aura.')
 
   return (
     <Suspense fallback={<div className="grid min-h-dvh place-items-center bg-arena text-sm font-bold uppercase tracking-[.22em] text-muted">Cargando torneo...</div>}>
