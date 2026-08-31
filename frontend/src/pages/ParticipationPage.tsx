@@ -27,8 +27,8 @@ export function ParticipationPage() {
   useEffect(() => {
     let disposed = false
     let cleanup = () => {}
-    void load()
-    void ensureVoterSession().then(() => { if (!disposed) cleanup = subscribeToCalls(load) }).catch(() => {})
+    // Load first: do not initiate a second anonymous sign-in alongside the API request.
+    void load().then(async () => { if (!disposed) { await ensureVoterSession(); if (!disposed) cleanup = subscribeToCalls(load) } }).catch(() => {})
     return () => { disposed = true; sequence.current += 1; cleanup() }
   }, [load])
   const open = calls.filter(call => call.status === 'registration')
@@ -40,7 +40,7 @@ export function ParticipationPage() {
           <p className="eyebrow">Elige tu próxima batalla</p><h1 className="page-title">Convocatorias</h1>
           <p className="page-lead">Selecciona una edición abierta y registra tu Aura. Tu inscripción se confirma al enviarla y llega al equipo en tiempo real.</p>
           {error && <p role="alert" className="notice-error mt-5">{error} <button className="underline" onClick={() => void load()}>Reintentar</button></p>}
-          {loading ? <p role="status" className="mt-6 text-secondary">Cargando convocatorias…</p> : <fieldset className="mt-6 grid gap-3"><legend className="field-label mb-3">Abiertas · {open.length}</legend>
+          {loading ? <p role="status" className="mt-6 text-secondary">Cargando convocatorias…</p> : error && !calls.length ? null : <fieldset className="mt-6 grid gap-3"><legend className="field-label mb-3">Abiertas · {open.length}</legend>
             {open.length === 0 && <p className="rounded-2xl border border-white bg-white/60 p-5 text-sm text-secondary">No hay inscripciones abiertas por ahora. Las próximas convocatorias aparecerán aquí.</p>}
             {open.map(call => <label key={call.id} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors ${selected?.id === call.id ? 'border-fuchsia-400 bg-fuchsia-50' : 'border-white bg-white/60 hover:border-fuchsia-200'}`}>
               <input type="radio" name="convocatoria" value={call.id} checked={selected?.id === call.id} onChange={() => setSelected(call)} className="mt-1 size-5 shrink-0 accent-fuchsia-700" />

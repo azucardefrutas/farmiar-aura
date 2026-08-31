@@ -43,7 +43,7 @@ Este ensayo funcional **no es una prueba de carga ni certifica protección frent
 
 ## Comprobaciones de esta actualización
 
-- Compilación de frontend/backend y 73 pruebas automatizadas aprobadas.
+- Compilación de frontend/backend y 75 pruebas automatizadas aprobadas.
 - SQL transaccional: 12 turnos, 4 pases directos, tercer lugar antes de final; rechazo de turno obsoleto, duplicado, fuera de orden y escenario pausado.
 - Regresiones de eliminación directa con 2, 3, 5, 6, 8, 12, 17 y 32 participantes.
 - Registro explícito en distintas convocatorias, rechazo de duplicados/cierre y permisos de funciones.
