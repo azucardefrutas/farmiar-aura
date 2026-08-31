@@ -5,7 +5,7 @@ import { rateLimit } from 'express-rate-limit'
 import type { AppConfig } from '../config.js'
 import type { SupabaseAdmin } from '../lib/supabase.js'
 import { requireAdmin } from '../middleware/auth.js'
-import { bracketSchema, collaboratorSchema, freeMatchSchema, loginSchema, matchActionSchema, reviewSchema, tournamentCallSchema, tournamentSettingsSchema, uuidSchema } from '../schemas.js'
+import { bracketSchema, collaboratorSchema, freeMatchSchema, loginSchema, matchActionSchema, nextStageMatchSchema, reviewSchema, tournamentCallSchema, tournamentSettingsSchema, uuidSchema } from '../schemas.js'
 import { getTournamentSnapshot } from '../services/tournament.js'
 import { buildBracketSlots } from '../services/bracket.js'
 
@@ -85,6 +85,27 @@ export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig) {
       if (error) return res.status(400).json({ error: error.message })
       await audit(supabase, req.administrator!.id, 'tournament.published', 'tournament', id)
       return res.json({ success: true })
+    } catch (error) { next(error) }
+  })
+
+  router.post('/tournaments/:id/registrations/open', authenticated, async (req, res, next) => {
+    try {
+      const id = uuidSchema.parse(req.params.id)
+      const { error } = await supabase.rpc('open_tournament_registrations', { p_tournament_id: id })
+      if (error) return res.status(409).json({ error: error.message })
+      await audit(supabase, req.administrator!.id, 'registrations.opened', 'tournament', id)
+      return res.json({ success: true })
+    } catch (error) { next(error) }
+  })
+
+  router.post('/tournaments/:id/stage/next', authenticated, async (req, res, next) => {
+    try {
+      const id = uuidSchema.parse(req.params.id)
+      const input = nextStageMatchSchema.parse(req.body)
+      const { data, error } = await supabase.rpc('start_next_stage_match', { p_tournament_id: id, p_expected_match_id: input.matchId })
+      if (error) return res.status(409).json({ error: error.message })
+      await audit(supabase, req.administrator!.id, 'stage.next.started', 'match', data.matchId)
+      return res.json({ success: true, result: data })
     } catch (error) { next(error) }
   })
 

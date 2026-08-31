@@ -9,18 +9,20 @@ interface Props {
   onSelect: (id: string) => void
   onCreate: (name: string, format: TournamentFormat) => Promise<void>
   onPublish: () => void
+  onOpenRegistrations: () => void
 }
 
-export function TournamentManager({ calls = [], selectedId, busy, onSelect, onCreate, onPublish }: Props) {
+export function TournamentManager({ calls = [], selectedId, busy, onSelect, onCreate, onPublish, onOpenRegistrations }: Props) {
   const [creating, setCreating] = useState(false)
   const selected = calls.find((call) => call.id === selectedId)
   return <section id="convocatorias" className="admin-section scroll-mt-6">
     <div className="section-heading"><div><p className="eyebrow">Cada edición, su historia</p><h2>Convocatorias</h2></div><button type="button" className="secondary-action" onClick={() => setCreating(!creating)}><Plus size={17} /> Nueva</button></div>
     <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start">
-      <details className="min-w-0 flex-1 rounded-2xl border border-white bg-white/60 p-3"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-bold">{selected?.name ?? 'Seleccionar convocatoria'}<ChevronDown size={17} /></summary><div className="mt-2 grid max-h-64 gap-1 overflow-y-auto">{calls.map((call) => <button type="button" key={call.id} disabled={busy} aria-pressed={selectedId === call.id} className={`rounded-xl px-3 py-3 text-left text-sm ${selectedId === call.id ? 'bg-fuchsia-100 text-fuchsia-900' : 'hover:bg-slate-100'}`} onClick={(event) => { onSelect(call.id); event.currentTarget.closest('details')?.removeAttribute('open') }}><strong className="block">{call.name}</strong><span className="text-xs">{call.format === 'single_elimination' ? 'Eliminación directa' : 'Batallas libres'} · {call.isCurrent ? 'Visible al público' : call.status === 'draft' ? 'Borrador' : 'Historial'}</span></button>)}</div></details>
-      {selected?.isCurrent ? <span className="status-pill status-live"><span /> En la web</span> : <button type="button" className="primary-action" disabled={busy} onClick={onPublish}><Radio size={17} /> Publicar convocatoria</button>}
+      <details className="min-w-0 flex-1 rounded-2xl border border-white bg-white/60 p-3"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-bold">{selected?.name ?? 'Seleccionar convocatoria'}<ChevronDown size={17} /></summary><div className="mt-2 grid max-h-64 gap-1 overflow-y-auto">{calls.map((call) => <button type="button" key={call.id} disabled={busy} aria-pressed={selectedId === call.id} className={`rounded-xl px-3 py-3 text-left text-sm ${selectedId === call.id ? 'bg-fuchsia-100 text-fuchsia-900' : 'hover:bg-slate-100'}`} onClick={(event) => { onSelect(call.id); event.currentTarget.closest('details')?.removeAttribute('open') }}><strong className="block">{call.name}</strong><span className="text-xs">{call.format === 'single_elimination' ? 'Eliminación directa' : 'Batallas libres'} · {call.isCurrent ? 'En escenario' : call.status === 'draft' ? 'Borrador' : call.status === 'registration' ? 'Inscripciones abiertas' : 'Historial'}</span></button>)}</div></details>
+      {selected?.isCurrent ? <span className="status-pill status-live"><span /> En escenario</span> : <button type="button" className="primary-action" disabled={busy} onClick={onPublish}><Radio size={17} /> Llevar al escenario</button>}
     </div>
-    <p className="mt-3 text-xs leading-5 text-secondary">Seleccionar solo cambia tu vista. Publicar cambia la convocatoria de los votantes, sin borrar inscripciones ni resultados anteriores.</p>
+    {selected?.status === 'draft' && <button type="button" className="secondary-action mt-3" disabled={busy} onClick={onOpenRegistrations}>Abrir inscripciones</button>}
+    <p className="mt-3 text-xs leading-5 text-secondary">Puedes abrir varias convocatorias para inscripción, pero solo una ocupa el escenario. Seleccionar cambia tu vista; llevar al escenario cambia lo que ven los votantes, sin borrar el historial.</p>
     {creating && <form className="mt-5 grid gap-4 border-t border-slate-200 pt-5" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void onCreate(String(form.get('name')), String(form.get('format')) as TournamentFormat) }}>
       <label><span className="field-label">Nombre de la convocatoria</span><input className="field-input" name="name" minLength={3} maxLength={100} placeholder="Batallas de Aura · Segunda edición" required /></label>
       <fieldset className="grid gap-3 sm:grid-cols-2"><legend className="field-label mb-2">Modalidad</legend>

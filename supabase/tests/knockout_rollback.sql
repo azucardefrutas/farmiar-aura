@@ -3,7 +3,7 @@ do $$
 declare n integer; test_id uuid; entrant uuid; entrants uuid[]; slots uuid[]; seeds integer[]; next_seeds integer[];
   seed integer; capacity integer; battle record; finished_count integer; final_id uuid; replay_id uuid;
 begin
-  foreach n in array array[2,3,5,6,8,17,32] loop
+  foreach n in array array[2,3,5,6,8,12,17,32] loop
     select (public.create_tournament_call('QA eliminatoria','single_elimination',90,100)->>'id')::uuid into test_id;
     update public.tournaments set is_current=false where is_current;
     update public.tournaments set is_current=true,status='registration' where id=test_id;
@@ -24,7 +24,7 @@ begin
     if (select count(*) from public.matches where tournament_id=test_id and match_type='bye')<>capacity-n then raise exception 'Wrong byes for %',n; end if;
     finished_count:=0;
     loop
-      select * into battle from public.matches where tournament_id=test_id and status='scheduled' and contestant_a_id is not null and contestant_b_id is not null order by round_number,bracket_position limit 1;
+      select * into battle from public.matches where tournament_id=test_id and status='scheduled' and contestant_a_id is not null and contestant_b_id is not null order by round_number,case when match_type='third_place' then 0 else 1 end,bracket_position limit 1;
       exit when not found;
       perform public.start_match(battle.id);
       perform public.finish_match(battle.id,battle.contestant_a_id);
@@ -45,4 +45,4 @@ begin
 end;
 $$;
 rollback;
-select 'PASS: 2, 3, 5, 6, 8, 17 and 32 entrants complete all rounds, byes, final, third place and isolated replay; fixtures rolled back' as result;
+select 'PASS: 2, 3, 5, 6, 8, 12, 17 and 32 entrants complete all rounds, byes, final, third place and isolated replay; fixtures rolled back' as result;

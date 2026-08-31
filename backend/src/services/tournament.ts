@@ -1,4 +1,5 @@
 import { calculateStandings } from './standings.js'
+import { buildStageSchedule } from './stage.js'
 import type { SupabaseAdmin } from '../lib/supabase.js'
 
 type Row = Record<string, unknown>
@@ -97,9 +98,8 @@ export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: s
     }
   })
 
-  const activeMatch = matches.find((match) => match.matchType !== 'bye' && (match.status === 'live' || match.status === 'paused'))
-    ?? matches.find((match) => match.matchType !== 'bye' && match.status === 'scheduled' && match.contestantA && match.contestantB)
-    ?? null
+  const { current, next, stage } = buildStageSchedule(matches)
+  const activeMatch = current ?? (next?.contestantA && next.contestantB ? next : null)
   const totalVotes = [...counts.values()].reduce((sum, byContestant) => sum + [...byContestant.values()].reduce((inner, value) => inner + value, 0), 0)
   if (voterId && activeMatch) {
     const { data: vote, error } = await supabase.from('votes').select('match_id,contestant_id').eq('match_id', activeMatch.id).eq('voter_id', voterId).maybeSingle()
@@ -129,6 +129,7 @@ export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: s
       matches: matches.filter((match) => match.roundId === round.id),
     })),
     activeMatch,
+    stage,
     viewerVote,
     placements,
     standings,

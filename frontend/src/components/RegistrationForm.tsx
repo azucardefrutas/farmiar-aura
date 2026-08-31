@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { CheckCircle2, ImagePlus, LoaderCircle } from 'lucide-react'
 import { api } from '../lib/api'
 
-export function RegistrationForm({ onCreated }: { onCreated?: (message: string) => void }) {
+export function RegistrationForm({ tournamentId, tournamentName, acceptingRegistrations, registered, onCreated }: { tournamentId: string; tournamentName: string; acceptingRegistrations: boolean; registered: boolean; onCreated?: (message: string) => void }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -12,8 +12,10 @@ export function RegistrationForm({ onCreated }: { onCreated?: (message: string) 
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!acceptingRegistrations || registered || submitting || success) return
     const formElement = event.currentTarget
     const formData = new FormData(formElement)
+    formData.set('tournamentId', tournamentId)
     setSubmitting(true); setError(''); setSuccess('')
     try {
       const result = await api.register(formData)
@@ -27,6 +29,10 @@ export function RegistrationForm({ onCreated }: { onCreated?: (message: string) 
 
   return (
     <form className="registration-form" onSubmit={submit}>
+      <div><p className="eyebrow">Tu convocatoria</p><h2 className="mt-2 font-display text-xl font-bold">{tournamentName}</h2></div>
+      {!acceptingRegistrations && <p role="status" className="notice-error">Esta convocatoria cerró sus inscripciones. Tus datos no se enviarán a otra edición.</p>}
+      {registered && !success && <p role="status" className="notice-success">Ya enviaste tu inscripción a esta convocatoria desde esta sesión.</p>}
+      <fieldset disabled={submitting || !acceptingRegistrations || registered || Boolean(success)} className="grid min-w-0 gap-5 disabled:opacity-70">
       <div className="grid gap-5 sm:grid-cols-2">
         <label><span className="field-label">Nombre</span><input className="field-input" name="nombre" required minLength={2} maxLength={60} autoComplete="given-name" placeholder="Tu nombre" /></label>
         <label><span className="field-label">Apellidos</span><input className="field-input" name="apellidos" required minLength={2} maxLength={80} autoComplete="family-name" placeholder="Tus apellidos" /></label>
@@ -41,10 +47,11 @@ export function RegistrationForm({ onCreated }: { onCreated?: (message: string) 
         <label><span className="field-label">Instagram <small>(opcional)</small></span><input className="field-input" name="instagram" maxLength={31} placeholder="@usuario" /></label>
       </div>
       <label><span className="field-label">Foto <small>(opcional, máximo 3 MB)</small></span><span className="photo-picker mt-2 flex min-h-28 cursor-pointer items-center gap-4 p-4">{preview ? <img src={preview} alt="Vista previa de tu foto" className="size-20 rounded-xl object-cover" /> : <span className="grid size-14 place-items-center rounded-xl bg-cyan-100 text-cyan-800"><ImagePlus /></span>}<span className="text-sm text-secondary"><strong className="block text-primary">Selecciona tu foto</strong>JPG, PNG o WebP</span><input name="foto" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => { if (preview) URL.revokeObjectURL(preview); setPreview(event.target.files?.[0] ? URL.createObjectURL(event.target.files[0]) : null) }} /></span></label>
-      {error && <p role="alert" className="notice-error">{error}</p>}
-      {success && <p role="status" className="notice-success flex items-start gap-2"><CheckCircle2 className="mt-0.5 shrink-0" size={18} />{success}</p>}
       <button className="primary-action min-h-13 w-full" disabled={submitting} aria-busy={submitting}>{submitting && <LoaderCircle className="animate-spin" size={18} />}{submitting ? 'Confirmando inscripción...' : 'Confirmar mi inscripción'}</button>
-      <p className="text-center text-xs leading-5 text-muted">Al enviarla, tu lugar aparece de inmediato en la bandeja del torneo. Una inscripción por persona.</p>
+      </fieldset>
+      {error && <p role="alert" className="notice-error">{error}</p>}
+      {success && <p role="status" className="notice-success flex items-start gap-2"><CheckCircle2 className="mt-0.5 shrink-0" size={18} />{success} Convocatoria: {tournamentName}.</p>}
+      <p className="text-center text-xs leading-5 text-muted">Una inscripción por sesión y convocatoria. El equipo la recibirá automáticamente.</p>
     </form>
   )
 }

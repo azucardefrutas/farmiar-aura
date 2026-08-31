@@ -6,6 +6,7 @@ import type { SupabaseAdmin } from '../lib/supabase.js'
 import { requireVoter } from '../middleware/auth.js'
 import { registrationSchema, voteSchema } from '../schemas.js'
 import { getTournamentSnapshot } from '../services/tournament.js'
+import { getRegistrationCalls } from '../services/registrationCalls.js'
 
 const acceptedImages = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const upload = multer({
@@ -60,6 +61,11 @@ export function createPublicRouter(supabase: SupabaseAdmin) {
     } catch (error) { next(error) }
   })
 
+  router.get('/tournaments', requireVoter(supabase), readLimiter, async (req, res, next) => {
+    try { res.json(await getRegistrationCalls(supabase, req.voter!.id)) }
+    catch (error) { next(error) }
+  })
+
   router.post('/votes', requireVoter(supabase), voteLimiter, async (req, res, next) => {
     try {
       const input = voteSchema.parse(req.body)
@@ -77,8 +83,12 @@ export function createPublicRouter(supabase: SupabaseAdmin) {
   router.post('/registrations', requireVoter(supabase), registrationLimiter, upload.single('foto'), async (req, res, next) => {
     try {
       const input = registrationSchema.parse(req.body)
-      const { data: tournament, error: tournamentError } = await supabase.from('tournaments').select('id,status').eq('is_current', true).single()
+      let query = supabase.from('tournaments').select('id,status')
+      // Explicit selection is sticky: never silently register in another call.
+      query = input.tournamentId ? query.eq('id', input.tournamentId) : query.eq('is_current', true)
+      const { data: tournament, error: tournamentError } = await query.maybeSingle()
       if (tournamentError) throw tournamentError
+      if (!tournament) return res.status(404).json({ error: 'Convocatoria no encontrada.' })
       if (tournament.status !== 'registration') return res.status(409).json({ error: 'El registro de participantes está cerrado.' })
 
       const registrationId = randomUUID()
@@ -112,6 +122,7 @@ export function createPublicRouter(supabase: SupabaseAdmin) {
       if (error) {
         if (photoPath) await supabase.storage.from('participant-photos').remove([photoPath])
         if (error.code === '23505') return res.status(409).json({ error: 'Ya enviaste una solicitud para este torneo.' })
+        if (error.code === 'P0001') return res.status(409).json({ error: 'Esta convocatoria cerró sus inscripciones. Elige otra abierta.' })
         throw error
       }
       return res.status(201).json({ success: true, registrationId, result: data, message: 'Inscripción confirmada. Ya formas parte de Batallas de Aura.' })

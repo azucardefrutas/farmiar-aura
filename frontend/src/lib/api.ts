@@ -1,4 +1,4 @@
-import type { AdminDashboard, AdminSession, TournamentFormat, TournamentSnapshot } from '../types'
+import type { AdminDashboard, AdminSession, RegistrationCall, TournamentFormat, TournamentSnapshot } from '../types'
 import { ensureVoterSession } from './supabase'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '')
@@ -24,6 +24,15 @@ async function voterHeaders() {
 const adminHeaders = (token: string) => ({ Authorization: `Bearer ${token}` })
 
 export const api = {
+  async registrationCalls() {
+    return request<{ calls: RegistrationCall[] }>('/tournaments', { headers: await voterHeaders() })
+  },
+  openRegistrations(token: string, id: string) {
+    return request(`/admin/tournaments/${id}/registrations/open`, { method: 'POST', headers: adminHeaders(token) })
+  },
+  startNextStage(token: string, id: string, matchId: string) {
+    return request(`/admin/tournaments/${id}/stage/next`, { method: 'POST', headers: adminHeaders(token), body: JSON.stringify({ matchId }) })
+  },
   async tournament() {
     return request<TournamentSnapshot>('/tournament', { headers: await voterHeaders() })
   },

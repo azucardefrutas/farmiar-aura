@@ -7,6 +7,7 @@ import { subscribeToTournament } from '../lib/realtime'
 import { ensureVoterSession } from '../lib/supabase'
 import type { AdminDashboard, AdminSession, AuraMatch, TournamentFormat } from '../types'
 import { BrandMark } from '../components/BrandMark'
+import { StageAgenda } from '../components/StageAgenda'
 import { Countdown } from '../components/Countdown'
 import { StandingsTable } from '../components/StandingsTable'
 import { TournamentBracket } from '../components/TournamentBracket'
@@ -163,9 +164,11 @@ export function AdminPage() {
             <TournamentManager calls={dashboard.calls} selectedId={dashboard.tournament.id} busy={Boolean(busy)}
               onSelect={(id) => { if (id !== dashboard.tournament.id) { setDashboard(null); setSelectedTournamentId(id) } }}
               onCreate={createCall}
-              onPublish={() => { if (window.confirm('¿Mostrar esta convocatoria al público? El historial anterior se conserva.')) void perform('publish', () => api.publishCall(session.token, dashboard.tournament.id), 'Convocatoria publicada.') }}
+              onOpenRegistrations={() => void perform('open-registration', () => api.openRegistrations(session.token, dashboard.tournament.id), 'Inscripciones abiertas, sin cambiar el escenario actual.')}
+              onPublish={() => { if (window.confirm('¿Llevar esta convocatoria al escenario de votación? El historial anterior se conserva.')) void perform('publish', () => api.publishCall(session.token, dashboard.tournament.id), 'Convocatoria publicada.') }}
             />
-            {dashboard.activeMatch && <ActiveMatchControl serverTime={dashboard.serverTime} match={dashboard.activeMatch} auraPerVote={dashboard.tournament.rules.auraPerVote} busy={busy} onAction={(action, tieWinnerId) => perform(`match-${action}`, () => api.matchAction(session.token, dashboard.activeMatch!.id, action, tieWinnerId), `Batalla ${action === 'start' ? 'iniciada' : action === 'pause' ? 'pausada' : action === 'resume' ? 'reanudada' : 'finalizada'}.`)} />}
+            <StageAgenda stage={dashboard.stage} isCurrent={dashboard.tournament.isCurrent} busy={Boolean(busy)} onStart={(matchId) => void perform('stage-next', () => api.startNextStage(session.token, dashboard.tournament.id, matchId), 'Siguiente batalla iniciada.')} />
+            {dashboard.activeMatch && ['live', 'paused'].includes(dashboard.activeMatch.status) && <ActiveMatchControl serverTime={dashboard.serverTime} match={dashboard.activeMatch} auraPerVote={dashboard.tournament.rules.auraPerVote} busy={busy} onAction={(action, tieWinnerId) => perform(`match-${action}`, () => api.matchAction(session.token, dashboard.activeMatch!.id, action, tieWinnerId), `Batalla ${action === 'start' ? 'iniciada' : action === 'pause' ? 'pausada' : action === 'resume' ? 'reanudada' : 'finalizada'}.`)} />}
 
             <TournamentRulesForm
               key={`${dashboard.tournament.id}-${dashboard.tournament.rules.durationSeconds}-${dashboard.tournament.rules.auraPerVote}`}
@@ -201,7 +204,7 @@ export function AdminPage() {
                 <FreeMatchForm key={dashboard.tournament.id} contestants={dashboard.contestants} duration={dashboard.tournament.rules.durationSeconds} busy={Boolean(busy)} onCreate={(a, b, seconds) => perform('free-match', () => api.createFreeMatch(session.token, dashboard.tournament.id, a, b, seconds), 'Batalla programada.')} />
                 {dashboard.tournament.status !== 'finished' && <button type="button" className="secondary-action mb-5" disabled={Boolean(busy)} onClick={() => { if (window.confirm('¿Cerrar las batallas libres y calcular los lugares finales?')) void perform('finish-call', () => api.finishCall(session.token, dashboard.tournament.id), 'Convocatoria finalizada; clasificación calculada.') }}>Finalizar convocatoria</button>}
               </>}
-              <TournamentBracket rounds={dashboard.rounds} renderActions={(match) => <MatchControl match={match} busy={busy}
+              <TournamentBracket rounds={dashboard.rounds} renderActions={(match) => <MatchControl match={match} busy={busy} turn={dashboard.stage?.queue.find(slot => slot.matchId === match.id)?.number}
                 onAction={(action) => perform(`${match.id}-${action}`, () => api.matchAction(session.token, match.id, action), 'Estado de batalla actualizado.')}
                 onDelete={() => { if (window.confirm('¿Eliminar esta batalla y todos sus votos? No se puede deshacer.')) void perform('delete-match', () => api.deleteMatch(session.token, match.id), 'Batalla eliminada.') }}
                 onReplay={() => { if (window.confirm('¿Crear revancha de exhibición con votos nuevos? El resultado oficial y la clasificación NO cambian.')) void perform('replay', () => api.replayMatch(session.token, match.id), 'Revancha de exhibición creada. El resultado original se conserva.') }}
@@ -255,9 +258,10 @@ function TournamentRulesForm({ durationSeconds, auraPerVote, participantCount, k
   </section>
 }
 
-function MatchControl({ match, busy, onAction, onDelete, onReplay }: { match: AuraMatch; busy: string; onAction: (action: 'start' | 'pause' | 'resume' | 'finish') => Promise<void>; onDelete: () => void; onReplay: () => void }) {
+function MatchControl({ match, busy, turn, onAction, onDelete, onReplay }: { match: AuraMatch; busy: string; turn?: number; onAction: (action: 'start' | 'pause' | 'resume' | 'finish') => Promise<void>; onDelete: () => void; onReplay: () => void }) {
   return <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-200 pt-2 text-xs">
-    {match.status === 'scheduled' && match.contestantA && match.contestantB && <button className="compact-action compact-approve" disabled={Boolean(busy)} onClick={() => void onAction('start')}><Play size={14} /> Iniciar</button>}
+    {turn && <span className="self-center text-xs text-secondary">Turno {turn}</span>}
+    {match.isReplay && match.status === 'scheduled' && match.contestantA && match.contestantB && <button className="compact-action compact-approve" disabled={Boolean(busy)} onClick={() => void onAction('start')}><Play size={14} /> Iniciar exhibición</button>}
     {match.status === 'live' && <button className="compact-action" disabled={Boolean(busy)} onClick={() => void onAction('pause')}><Pause size={14} /> Pausar</button>}
     {match.status === 'paused' && <button className="compact-action" disabled={Boolean(busy)} onClick={() => void onAction('resume')}><Play size={14} /> Seguir</button>}
     {match.status === 'finished' && match.matchType !== 'bye' && <button className="compact-action" disabled={Boolean(busy)} onClick={onReplay}><RotateCcw size={14} /> Repetir · exhibición</button>}

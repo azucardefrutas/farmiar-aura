@@ -1,7 +1,58 @@
-import { Clock3, Radio, ShieldCheck } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { CheckCircle2, ChevronRight, Trophy } from 'lucide-react'
 import { PublicNavigation } from '../components/PublicNavigation'
 import { RegistrationForm } from '../components/RegistrationForm'
+import { api } from '../lib/api'
+import { subscribeToCalls } from '../lib/realtime'
+import { ensureVoterSession } from '../lib/supabase'
+import type { RegistrationCall } from '../types'
 
 export function ParticipationPage() {
-  return <div className="public-page min-h-dvh bg-arena text-primary"><PublicNavigation /><main className="public-content page-shell py-7 sm:py-10"><div className="registration-layout"><section><span className="status-pill status-live"><span /> Inscripciones abiertas</span><p className="eyebrow mt-6">Entra a la competencia</p><h1 className="page-title">Registra tu Aura</h1><p className="page-lead">Completa tus datos una sola vez. Tu inscripción se confirma automáticamente y el equipo la verá en vivo.</p><div className="registration-steps"><div><ShieldCheck /><span><strong>1. Perfil seguro</strong><small>Tus datos viajan por una operación validada.</small></span></div><div><Radio /><span><strong>2. Alta inmediata</strong><small>Apareces en la bandeja de colaboradores.</small></span></div><div><Clock3 /><span><strong>3. Espera la llave</strong><small>Al cerrar registros se generan los cruces.</small></span></div></div></section><section className="admin-section mt-0"><RegistrationForm /></section></div></main></div>
+  const [calls, setCalls] = useState<RegistrationCall[]>([])
+  const [selected, setSelected] = useState<RegistrationCall | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const sequence = useRef(0)
+  const load = useCallback(async () => {
+    const request = ++sequence.current
+    try {
+      const result = await api.registrationCalls()
+      if (request !== sequence.current) return
+      setCalls(result.calls); setError('')
+      // A half-filled form must never move to a different call after a realtime update.
+      setSelected(current => current ? result.calls.find(call => call.id === current.id) ?? { ...current, status: 'archived' } : null)
+    } catch (caught) { if (request === sequence.current) setError(caught instanceof Error ? caught.message : 'No fue posible cargar las convocatorias.') }
+    finally { if (request === sequence.current) setLoading(false) }
+  }, [])
+  useEffect(() => {
+    let disposed = false
+    let cleanup = () => {}
+    void load()
+    void ensureVoterSession().then(() => { if (!disposed) cleanup = subscribeToCalls(load) }).catch(() => {})
+    return () => { disposed = true; sequence.current += 1; cleanup() }
+  }, [load])
+  const open = calls.filter(call => call.status === 'registration')
+  const closed = calls.filter(call => call.status !== 'registration')
+  return <div className="public-page min-h-dvh bg-arena text-primary"><PublicNavigation />
+    <main className="public-content page-shell py-7 sm:py-10">
+      <div className="registration-layout">
+        <section>
+          <p className="eyebrow">Elige tu próxima batalla</p><h1 className="page-title">Convocatorias</h1>
+          <p className="page-lead">Selecciona una edición abierta y registra tu Aura. Tu inscripción se confirma al enviarla y llega al equipo en tiempo real.</p>
+          {error && <p role="alert" className="notice-error mt-5">{error} <button className="underline" onClick={() => void load()}>Reintentar</button></p>}
+          {loading ? <p role="status" className="mt-6 text-secondary">Cargando convocatorias…</p> : <fieldset className="mt-6 grid gap-3"><legend className="field-label mb-3">Abiertas · {open.length}</legend>
+            {open.length === 0 && <p className="rounded-2xl border border-white bg-white/60 p-5 text-sm text-secondary">No hay inscripciones abiertas por ahora. Las próximas convocatorias aparecerán aquí.</p>}
+            {open.map(call => <label key={call.id} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors ${selected?.id === call.id ? 'border-fuchsia-400 bg-fuchsia-50' : 'border-white bg-white/60 hover:border-fuchsia-200'}`}>
+              <input type="radio" name="convocatoria" value={call.id} checked={selected?.id === call.id} onChange={() => setSelected(call)} className="mt-1 size-5 shrink-0 accent-fuchsia-700" />
+              <span className="min-w-0 flex-1"><span className="text-xs font-bold text-fuchsia-800">Convocatoria abierta</span><strong className="mt-1 block break-words text-base">{call.name}</strong><span className="mt-1 block text-xs leading-5 text-secondary">{call.format === 'single_elimination' ? 'Eliminación directa · 1 vs 1' : 'Batallas libres'} · {call.durationSeconds} s por batalla</span>{call.registered && <span className="mt-2 flex items-center gap-1 text-xs text-emerald-800"><CheckCircle2 size={14} /> Inscripción enviada</span>}</span><ChevronRight className="mt-1 shrink-0 text-fuchsia-700" size={18} />
+            </label>)}
+          </fieldset>}
+          {closed.length > 0 && <details className="mt-5 rounded-2xl border border-white bg-white/40 p-4"><summary className="min-h-11 cursor-pointer text-sm font-bold">Inscripciones cerradas ({closed.length})</summary><ul className="grid gap-3 border-t border-slate-200 pt-3">{closed.map(call => <li key={call.id} className="text-sm"><strong className="block">{call.name}</strong><span className="text-xs text-secondary">{call.status === 'finished' ? 'Finalizada' : 'Registro cerrado'}{call.registered ? ' · Tu inscripción está registrada' : ''}</span></li>)}</ul></details>}
+        </section>
+        <section className="admin-section mt-0 self-start">
+          {selected ? <RegistrationForm key={selected.id} tournamentId={selected.id} tournamentName={selected.name} acceptingRegistrations={selected.status === 'registration'} registered={selected.registered} onCreated={() => void load()} /> : <div className="grid min-h-64 content-center justify-items-start gap-4 p-2"><Trophy className="text-fuchsia-700" size={28} /><h2 className="font-display text-xl font-bold">Primero, elige tu convocatoria</h2><p className="max-w-sm text-sm leading-6 text-secondary">Después completa tu nombre, edad, carrera, grupo y foto. Así tu inscripción llegará a la edición correcta.</p></div>}
+        </section>
+      </div>
+    </main>
+  </div>
 }

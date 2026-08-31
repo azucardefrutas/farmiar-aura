@@ -10,6 +10,7 @@ export const voteSchema = z.object({
 }).strict()
 
 export const registrationSchema = z.object({
+  tournamentId: uuidSchema.optional(),
   nombre: cleanText(2, 60),
   apellidos: cleanText(2, 80),
   edad: z.coerce.number().int().min(15).max(99),
@@ -61,3 +62,5 @@ export const matchActionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('resume') }),
   z.object({ action: z.literal('finish'), tieWinnerId: uuidSchema.nullish() }),
 ])
+
+export const nextStageMatchSchema = z.object({ matchId: uuidSchema }).strict()
