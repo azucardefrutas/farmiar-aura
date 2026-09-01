@@ -21,3 +21,10 @@ export async function ensureVoterSession(captchaToken?: string) {
   await supabase.realtime.setAuth(data.session.access_token)
   return data.session
 }
+
+export async function refreshVoterSession() {
+  const { data, error } = await supabase.auth.refreshSession()
+  if (error || !data.session) throw new Error(error?.message || 'No fue posible renovar la sesión de votación.')
+  await supabase.realtime.setAuth(data.session.access_token)
+  return data.session
+}

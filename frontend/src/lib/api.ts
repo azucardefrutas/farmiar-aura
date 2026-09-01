@@ -1,31 +1,66 @@
 import type { AdminDashboard, AdminSession, RegistrationCall, TournamentFormat, TournamentSnapshot } from '../types'
-import { ensureVoterSession } from './supabase'
+import { ensureVoterSession, refreshVoterSession } from './supabase'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '')
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) { super(message) }
+  constructor(message: string, public status: number) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+const REQUEST_TIMEOUT_MS = 60_000
+
+function errorMessage(status: number, serverMessage?: string) {
+  if (status === 404 && serverMessage?.trim().toLowerCase() === 'ruta no encontrada.') {
+    return 'Esta función todavía no está disponible en el servidor del torneo. Vuelve a intentarlo cuando termine la actualización.'
+  }
+  if (status === 429) return 'Hay demasiadas solicitudes en este momento. Espera unos segundos y vuelve a intentarlo.'
+  if ([502, 503, 504].includes(status)) return 'El servidor del torneo está iniciando o temporalmente no disponible. Vuelve a intentarlo en un momento.'
+  return serverMessage || 'No fue posible completar la solicitud.'
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (!(init?.body instanceof FormData)) headers.set('Content-Type', 'application/json')
-  const response = await fetch(`${API_URL}${path}`, { ...init, headers })
-  const payload = (await response.json().catch(() => ({}))) as { error?: string } & T
-  if (!response.ok) throw new ApiError(payload.error || 'No fue posible completar la solicitud.', response.status)
-  return payload
+  const controller = new AbortController()
+  const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const abortFromCaller = () => controller.abort()
+  init?.signal?.addEventListener('abort', abortFromCaller, { once: true })
+  try {
+    const response = await fetch(`${API_URL}${path}`, { ...init, headers, signal: controller.signal, cache: 'no-store' })
+    const payload = (await response.json().catch(() => ({}))) as { error?: string } & T
+    if (!response.ok) throw new ApiError(errorMessage(response.status, payload.error), response.status)
+    return payload
+  } catch (caught) {
+    if (caught instanceof ApiError) throw caught
+    if (controller.signal.aborted && !init?.signal?.aborted) {
+      throw new ApiError('El servidor tardó demasiado en responder. Vuelve a intentarlo en un momento.', 0)
+    }
+    throw new ApiError('No pudimos conectar con el servidor del torneo. Verifica tu conexión o vuelve a intentarlo en un momento.', 0)
+  } finally {
+    globalThis.clearTimeout(timeout)
+    init?.signal?.removeEventListener('abort', abortFromCaller)
+  }
 }
 
-async function voterHeaders() {
-  const session = await ensureVoterSession()
-  return { Authorization: `Bearer ${session.access_token}` }
+async function voterRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  let session = await ensureVoterSession()
+  try {
+    return await request<T>(path, { ...init, headers: { ...Object.fromEntries(new Headers(init?.headers)), Authorization: `Bearer ${session.access_token}` } })
+  } catch (caught) {
+    if (!(caught instanceof ApiError) || caught.status !== 401) throw caught
+    session = await refreshVoterSession()
+    return request<T>(path, { ...init, headers: { ...Object.fromEntries(new Headers(init?.headers)), Authorization: `Bearer ${session.access_token}` } })
+  }
 }
 
 const adminHeaders = (token: string) => ({ Authorization: `Bearer ${token}` })
 
 export const api = {
   async registrationCalls() {
-    return request<{ calls: RegistrationCall[] }>('/tournaments', { headers: await voterHeaders() })
+    return voterRequest<{ calls: RegistrationCall[] }>('/tournaments')
   },
   openRegistrations(token: string, id: string) {
     return request(`/admin/tournaments/${id}/registrations/open`, { method: 'POST', headers: adminHeaders(token) })
@@ -34,16 +69,16 @@ export const api = {
     return request(`/admin/tournaments/${id}/stage/next`, { method: 'POST', headers: adminHeaders(token), body: JSON.stringify({ matchId }) })
   },
   async tournament() {
-    return request<TournamentSnapshot>('/tournament', { headers: await voterHeaders() })
+    return voterRequest<TournamentSnapshot>('/tournament')
   },
   async vote(matchId: string, contestantId: string) {
-    return request<{ success: true; message: string }>('/votes', {
-      method: 'POST', headers: await voterHeaders(), body: JSON.stringify({ matchId, contestantId }),
+    return voterRequest<{ success: true; message: string }>('/votes', {
+      method: 'POST', body: JSON.stringify({ matchId, contestantId }),
     })
   },
   async register(form: FormData) {
-    return request<{ success: true; message: string }>('/registrations', {
-      method: 'POST', headers: await voterHeaders(), body: form,
+    return voterRequest<{ success: true; message: string }>('/registrations', {
+      method: 'POST', body: form,
     })
   },
   login(username: string, password: string) {
