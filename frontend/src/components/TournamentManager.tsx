@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, Plus, Radio, Trophy } from 'lucide-react'
+import { ChevronDown, Plus, Radio, Trash2, Trophy } from 'lucide-react'
 import type { Contestant, TournamentCall, TournamentFormat } from '../types'
 
 interface Props {
@@ -10,9 +10,11 @@ interface Props {
   onCreate: (name: string, format: TournamentFormat) => Promise<void>
   onPublish: () => void
   onOpenRegistrations: () => void
+  canDelete: boolean
+  onDelete: () => void
 }
 
-export function TournamentManager({ calls = [], selectedId, busy, onSelect, onCreate, onPublish, onOpenRegistrations }: Props) {
+export function TournamentManager({ calls = [], selectedId, busy, onSelect, onCreate, onPublish, onOpenRegistrations, canDelete, onDelete }: Props) {
   const [creating, setCreating] = useState(false)
   const selected = calls.find((call) => call.id === selectedId)
   return <section id="convocatorias" className="admin-section scroll-mt-6">
@@ -22,6 +24,10 @@ export function TournamentManager({ calls = [], selectedId, busy, onSelect, onCr
       {selected?.isCurrent ? <span className="status-pill status-live"><span /> En escenario</span> : <button type="button" className="primary-action" disabled={busy} onClick={onPublish}><Radio size={17} /> Llevar al escenario</button>}
     </div>
     {selected?.status === 'draft' && <button type="button" className="secondary-action mt-3" disabled={busy} onClick={onOpenRegistrations}>Abrir inscripciones</button>}
+    {canDelete && <div className="mt-5 border-t border-red-200/70 pt-5">
+      <button type="button" className="danger-action" disabled={busy || selected?.isCurrent || calls.length <= 1} onClick={onDelete}><Trash2 size={17} /> Eliminar convocatoria</button>
+      <p className="mt-2 text-xs leading-5 text-secondary">{selected?.isCurrent ? 'Para eliminarla, primero lleva otra convocatoria al escenario.' : calls.length <= 1 ? 'Debe existir al menos una convocatoria.' : 'Elimina esta convocatoria y todo su historial. Esta acción no se puede deshacer.'}</p>
+    </div>}
     <p className="mt-3 text-xs leading-5 text-secondary">Puedes abrir varias convocatorias para inscripción, pero solo una ocupa el escenario. Seleccionar cambia tu vista; llevar al escenario cambia lo que ven los votantes, sin borrar el historial.</p>
     {creating && <form className="mt-5 grid gap-4 border-t border-slate-200 pt-5" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void onCreate(String(form.get('name')), String(form.get('format')) as TournamentFormat) }}>
       <label><span className="field-label">Nombre de la convocatoria</span><input className="field-input" name="name" minLength={3} maxLength={100} placeholder="Batallas de Aura · Segunda edición" required /></label>

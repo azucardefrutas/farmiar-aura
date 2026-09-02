@@ -98,6 +98,9 @@ export const api = {
   publishCall(token: string, id: string) {
     return request(`/admin/tournaments/${id}/publish`, { method: 'POST', headers: adminHeaders(token) })
   },
+  deleteCall(token: string, id: string) {
+    return request<{ success: true; message: string }>(`/admin/tournaments/${id}`, { method: 'DELETE', headers: adminHeaders(token) })
+  },
   finishCall(token: string, id: string) {
     return request(`/admin/tournaments/${id}/finish`, { method: 'POST', headers: adminHeaders(token) })
   },

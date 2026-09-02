@@ -88,6 +88,31 @@ export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig) {
     } catch (error) { next(error) }
   })
 
+  router.delete('/tournaments/:id', onlyAdmin, async (req, res, next) => {
+    try {
+      const tournamentId = uuidSchema.parse(req.params.id)
+      const { data: registrations, error: registrationsError } = await supabase
+        .from('participant_registrations')
+        .select('id')
+        .eq('tournament_id', tournamentId)
+      if (registrationsError) throw registrationsError
+
+      const { data, error } = await supabase.rpc('delete_tournament_call', { p_tournament_id: tournamentId })
+      if (error) return res.status(409).json({ error: error.message })
+
+      const photoPaths = (registrations ?? []).flatMap(({ id }) =>
+        ['jpg', 'png', 'webp'].map((extension) => `${tournamentId}/${id}.${extension}`),
+      )
+      for (let offset = 0; offset < photoPaths.length; offset += 100) {
+        const { error: photoError } = await supabase.storage.from('participant-photos').remove(photoPaths.slice(offset, offset + 100))
+        if (photoError) console.error('Tournament photo cleanup failed', photoError.message)
+      }
+
+      await audit(supabase, req.administrator!.id, 'tournament.deleted', 'tournament', tournamentId, { name: data.name })
+      return res.json({ success: true, message: 'Convocatoria eliminada.' })
+    } catch (error) { next(error) }
+  })
+
   router.post('/tournaments/:id/registrations/open', authenticated, async (req, res, next) => {
     try {
       const id = uuidSchema.parse(req.params.id)

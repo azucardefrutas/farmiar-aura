@@ -118,6 +118,19 @@ export function AdminPage() {
     finally { setBusy('') }
   }
 
+  async function deleteCall() {
+    if (!session || !dashboard) return
+    const callName = dashboard.tournament.name
+    setBusy('delete-call'); setError(''); setNotice('')
+    try {
+      await api.deleteCall(session.token, dashboard.tournament.id)
+      setDashboard(null)
+      setSelectedTournamentId(undefined)
+      setNotice(`Convocatoria “${callName}” eliminada.`)
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'No fue posible eliminar la convocatoria.') }
+    finally { setBusy('') }
+  }
+
   const bracketCountValid = selected.size >= 2 && selected.size <= 32
   const registrations = dashboard?.registrations ?? []
 
@@ -166,6 +179,8 @@ export function AdminPage() {
               onCreate={createCall}
               onOpenRegistrations={() => void perform('open-registration', () => api.openRegistrations(session.token, dashboard.tournament.id), 'Inscripciones abiertas, sin cambiar el escenario actual.')}
               onPublish={() => { if (window.confirm('¿Llevar esta convocatoria al escenario de votación? El historial anterior se conserva.')) void perform('publish', () => api.publishCall(session.token, dashboard.tournament.id), 'Convocatoria publicada.') }}
+              canDelete={session.user.role === 'admin'}
+              onDelete={() => { if (window.confirm(`¿Eliminar “${dashboard.tournament.name}”? Se borrarán sus inscripciones, participantes, batallas, votos y fotos. No se puede deshacer.`)) void deleteCall() }}
             />
             <StageAgenda stage={dashboard.stage} isCurrent={dashboard.tournament.isCurrent} busy={Boolean(busy)} onStart={(matchId) => void perform('stage-next', () => api.startNextStage(session.token, dashboard.tournament.id, matchId), 'Siguiente batalla iniciada.')} />
             {dashboard.activeMatch && ['live', 'paused'].includes(dashboard.activeMatch.status) && <ActiveMatchControl serverTime={dashboard.serverTime} match={dashboard.activeMatch} auraPerVote={dashboard.tournament.rules.auraPerVote} busy={busy} onAction={(action, tieWinnerId) => perform(`match-${action}`, () => api.matchAction(session.token, dashboard.activeMatch!.id, action, tieWinnerId), `Batalla ${action === 'start' ? 'iniciada' : action === 'pause' ? 'pausada' : action === 'resume' ? 'reanudada' : 'finalizada'}.`)} />}
