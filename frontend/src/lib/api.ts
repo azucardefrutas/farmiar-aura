@@ -1,7 +1,12 @@
 import type { AdminDashboard, AdminSession, RegistrationCall, TournamentFormat, TournamentSnapshot } from '../types'
 import { ensureVoterSession, refreshVoterSession } from './supabase'
 
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '')
+const LEGACY_API_ORIGIN = 'https://farmear-aura-api.onrender.com'
+const CURRENT_API_ORIGIN = 'https://farmiar-aura.onrender.com'
+
+const API_URL = (import.meta.env.VITE_API_URL || `${CURRENT_API_ORIGIN}/api/v1`)
+  .replace(LEGACY_API_ORIGIN, CURRENT_API_ORIGIN)
+  .replace(/\/$/, '')
 
 export class ApiError extends Error {
   constructor(message: string, public status: number) {
