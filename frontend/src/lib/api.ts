@@ -1,4 +1,4 @@
-import type { AdminDashboard, AdminSession, RegistrationCall, TournamentFormat, TournamentSnapshot } from '../types'
+import type { AdminDashboard, AdminSession, RegistrationCall, ServerMetrics, TournamentFormat, TournamentSnapshot } from '../types'
 import { ensureVoterSession, refreshVoterSession } from './supabase'
 
 const LEGACY_API_ORIGIN = 'https://farmear-aura-api.onrender.com'
@@ -91,6 +91,9 @@ export const api = {
   },
   dashboard(token: string, tournamentId?: string) {
     return request<AdminDashboard>(`/admin/dashboard${tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ''}`, { headers: adminHeaders(token) })
+  },
+  serverMetrics(token: string, signal?: AbortSignal) {
+    return request<ServerMetrics>('/admin/server-metrics', { headers: adminHeaders(token), signal })
   },
   createCall(token: string, name: string, format: TournamentFormat, durationSeconds: number, auraPerVote: number) {
     return request<{ success: true; id: string }>('/admin/tournaments', { method: 'POST', headers: adminHeaders(token), body: JSON.stringify({ name, format, durationSeconds, auraPerVote }) })

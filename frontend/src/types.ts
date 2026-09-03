@@ -89,6 +89,18 @@ export interface AdminSession {
   user: { username: string; role: 'admin' | 'collaborator' }
 }
 
+export interface ServerMetrics {
+  sampledAt: string
+  source: 'render-container' | 'local-process'
+  status: 'healthy' | 'warning' | 'critical'
+  uptimeSeconds: number
+  cpu: { percent: number; limitCores: number | null }
+  memory: { usedBytes: number; limitBytes: number | null; percent: number | null }
+  requests: { active: number; perMinute: number; p95LatencyMs: number; errorRatePercent: number; sampleWindowMinutes: number }
+  eventLoopUtilizationPercent: number
+  database: { reachable: boolean; latencyMs: number }
+}
+
 export interface AdminDashboard extends TournamentSnapshot {
   calls: TournamentCall[]
   registrations: Registration[]

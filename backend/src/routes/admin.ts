@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { performance } from 'node:perf_hooks'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { rateLimit } from 'express-rate-limit'
@@ -8,16 +9,25 @@ import { requireAdmin } from '../middleware/auth.js'
 import { bracketSchema, collaboratorSchema, freeMatchSchema, loginSchema, matchActionSchema, nextStageMatchSchema, reviewSchema, tournamentCallSchema, tournamentSettingsSchema, uuidSchema } from '../schemas.js'
 import { getTournamentSnapshot } from '../services/tournament.js'
 import { buildBracketSlots } from '../services/bracket.js'
+import type { ServerMetricsCollector } from '../services/serverMetrics.js'
 
 async function audit(supabase: SupabaseAdmin, adminId: string, action: string, entityType: string, entityId?: string, metadata: Record<string, unknown> = {}) {
   const { error } = await supabase.from('audit_logs').insert({ administrator_id: adminId, action, entity_type: entityType, entity_id: entityId, metadata })
   if (error) console.error('Audit log failed', error.message)
 }
 
-export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig) {
+export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig, serverMetrics: ServerMetricsCollector) {
   const router = Router()
   const loginLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Demasiados intentos. Espera 15 minutos.' } })
   const actionLimiter = rateLimit({ windowMs: 60_000, limit: 45, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Demasiadas acciones administrativas. Espera un minuto.' } })
+  const metricsLimiter = rateLimit({
+    windowMs: 60_000,
+    limit: 30,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    keyGenerator: (req) => req.administrator?.id ?? 'unknown-admin',
+    message: { error: 'La telemetría se está consultando demasiado rápido. Espera unos segundos.' },
+  })
   const authenticated = requireAdmin(config)
   const onlyAdmin = requireAdmin(config, 'admin')
 
@@ -61,6 +71,27 @@ export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig) {
           createdAt: item.creado_en,
         })),
       })
+    } catch (error) { next(error) }
+  })
+
+  router.get('/server-metrics', authenticated, metricsLimiter, async (_req, res, next) => {
+    try {
+      const databaseStartedAt = performance.now()
+      const databaseCheck = await supabase.from('tournaments').select('id').limit(1)
+      const databaseLatencyMs = Math.round(performance.now() - databaseStartedAt)
+      const metrics = await serverMetrics.snapshot()
+      const database = {
+        reachable: !databaseCheck.error,
+        latencyMs: databaseLatencyMs,
+      }
+      const status = !database.reachable
+        ? 'critical'
+        : metrics.status === 'warning' || databaseLatencyMs >= 1_500
+          ? 'warning'
+          : 'healthy'
+
+      res.setHeader('Cache-Control', 'no-store')
+      return res.json({ ...metrics, status, database })
     } catch (error) { next(error) }
   })
 

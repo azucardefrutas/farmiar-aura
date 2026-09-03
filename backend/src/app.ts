@@ -7,6 +7,7 @@ import { createSupabaseAdmin } from './lib/supabase.js'
 import { errorHandler } from './middleware/errors.js'
 import { createAdminRouter } from './routes/admin.js'
 import { createPublicRouter } from './routes/public.js'
+import { createServerMetricsCollector } from './services/serverMetrics.js'
 
 export function allowedFrontendOrigins(configuredOrigins: string) {
   return new Set([
@@ -19,6 +20,7 @@ export function allowedFrontendOrigins(configuredOrigins: string) {
 export function createApp(config: AppConfig) {
   const app = express()
   const supabase = createSupabaseAdmin(config)
+  const serverMetrics = createServerMetricsCollector()
   const allowedOrigins = allowedFrontendOrigins(config.FRONTEND_URL)
 
   app.set('trust proxy', config.TRUST_PROXY_HOPS)
@@ -34,12 +36,13 @@ export function createApp(config: AppConfig) {
     maxAge: 86400,
   }))
   app.use(express.json({ limit: '24kb', strict: true }))
+  app.use(serverMetrics.middleware)
   // Coarse IP ceiling accommodates campus Wi-Fi; authenticated routes also limit each user.
   app.use(rateLimit({ windowMs: 60_000, limit: 6000, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Demasiadas peticiones desde esta red. Espera un minuto.' } }))
 
   app.get('/health', (_req, res) => res.json({ ok: true }))
   app.use('/api/v1', createPublicRouter(supabase))
-  app.use('/api/v1/admin', createAdminRouter(supabase, config))
+  app.use('/api/v1/admin', createAdminRouter(supabase, config, serverMetrics))
   app.use((_req, res) => res.status(404).json({ error: 'Ruta no encontrada.' }))
   app.use(errorHandler)
   return app

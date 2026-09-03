@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { BookOpenCheck, Check, CircleStop, Clock3, LayoutDashboard, LogOut, Menu, Pause, Play, Plus, Radio, RefreshCw, RotateCcw, Shield, Sparkles, Trash2, Trophy, UserCheck, UserPlus, UserX, Users, Wifi, WifiOff, X } from 'lucide-react'
+import { Activity, BookOpenCheck, Check, CircleStop, Clock3, LayoutDashboard, LogOut, Menu, Pause, Play, Plus, Radio, RefreshCw, RotateCcw, Shield, Sparkles, Trash2, Trophy, UserCheck, UserPlus, UserX, Users, Wifi, WifiOff, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { subscribeToAdminPresence, type OnlineAdministrator } from '../lib/adminPresence'
 import { subscribeToTournament } from '../lib/realtime'
@@ -13,6 +13,7 @@ import { StandingsTable } from '../components/StandingsTable'
 import { TournamentBracket } from '../components/TournamentBracket'
 import { FreeMatchForm, TournamentManager } from '../components/TournamentManager'
 import { durationLabel, suggestedMatchDuration, tournamentPlan } from '../lib/tournamentPlan'
+import { ServerHealthPanel } from '../components/ServerHealthPanel'
 
 const SESSION_KEY = 'farmear-aura-admin-session'
 
@@ -158,7 +159,7 @@ export function AdminPage() {
     <div className="admin-page min-h-dvh bg-arena text-primary">
       <header className="public-mobile-bar"><BrandMark /><button type="button" className="icon-action" onClick={() => setMenuOpen(true)} aria-label="Abrir menú administrativo"><Menu size={20} /></button></header>
       {menuOpen && <button type="button" className="nav-backdrop" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú" />}
-      <aside className={`admin-sidebar ${menuOpen ? 'is-open' : ''}`}><div className="flex items-center justify-between"><BrandMark /><button type="button" className="icon-action nav-close" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú"><X size={18} /></button></div><nav className="mt-9 grid gap-2"><a className="sidebar-link is-active" href="#resumen" onClick={() => setMenuOpen(false)}><LayoutDashboard size={18} /> Resumen</a><a className="sidebar-link" href="#convocatorias" onClick={() => setMenuOpen(false)}><Trophy size={18} /> Convocatorias</a><a className="sidebar-link" href="#inscripciones" onClick={() => setMenuOpen(false)}><UserPlus size={18} /> Inscripciones <span className="sidebar-count">{registrations.length}</span></a><a className="sidebar-link" href="#reglas" onClick={() => setMenuOpen(false)}><BookOpenCheck size={18} /> Reglas</a><a className="sidebar-link" href="#torneo" onClick={() => setMenuOpen(false)}><Trophy size={18} /> Llave y batallas</a><a className="sidebar-link" href="#equipo" onClick={() => setMenuOpen(false)}><Users size={18} /> Colaboradores <span className="sidebar-count">{onlineAdministrators.length}/{dashboard?.collaborators.length ?? 0}</span></a></nav><div className="mt-auto space-y-3"><p className="text-xs text-muted">{session.user.username} · {session.user.role}</p><Link to="/live" className="secondary-action w-full"><Radio size={17} /> Pantalla Live</Link><button type="button" onClick={logout} className="secondary-action w-full"><LogOut size={17} /> Cerrar sesión</button></div></aside>
+      <aside className={`admin-sidebar ${menuOpen ? 'is-open' : ''}`}><div className="flex items-center justify-between"><BrandMark /><button type="button" className="icon-action nav-close" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú"><X size={18} /></button></div><nav className="mt-9 grid gap-2"><a className="sidebar-link is-active" href="#resumen" onClick={() => setMenuOpen(false)}><LayoutDashboard size={18} /> Resumen</a><a className="sidebar-link" href="#servidor" onClick={() => setMenuOpen(false)}><Activity size={18} /> Servidor</a><a className="sidebar-link" href="#convocatorias" onClick={() => setMenuOpen(false)}><Trophy size={18} /> Convocatorias</a><a className="sidebar-link" href="#inscripciones" onClick={() => setMenuOpen(false)}><UserPlus size={18} /> Inscripciones <span className="sidebar-count">{registrations.length}</span></a><a className="sidebar-link" href="#reglas" onClick={() => setMenuOpen(false)}><BookOpenCheck size={18} /> Reglas</a><a className="sidebar-link" href="#torneo" onClick={() => setMenuOpen(false)}><Trophy size={18} /> Llave y batallas</a><a className="sidebar-link" href="#equipo" onClick={() => setMenuOpen(false)}><Users size={18} /> Colaboradores <span className="sidebar-count">{onlineAdministrators.length}/{dashboard?.collaborators.length ?? 0}</span></a></nav><div className="mt-auto space-y-3"><p className="text-xs text-muted">{session.user.username} · {session.user.role}</p><Link to="/live" className="secondary-action w-full"><Radio size={17} /> Pantalla Live</Link><button type="button" onClick={logout} className="secondary-action w-full"><LogOut size={17} /> Cerrar sesión</button></div></aside>
       <main id="resumen" className="admin-content page-shell py-8 sm:py-10">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div><p className="text-xs font-bold uppercase tracking-[.24em] text-fuchsia-700">Centro de control</p><h1 className="mt-2 font-display text-4xl font-extrabold tracking-[-.04em] text-primary">{dashboard?.tournament.name ?? 'Batallas de Aura'}</h1><p className="mt-3 text-secondary">Todo cambio confirmado se publica a votantes y pantalla en vivo por WebSocket.</p></div>
@@ -173,6 +174,8 @@ export function AdminPage() {
               <AdminMetric label="Votos confirmados" value={dashboard.summary.votes} icon={<Check />} />
               <AdminMetric label="Aura total" value={dashboard.summary.totalAura.toLocaleString('es-MX')} icon={<Radio />} />
             </section>
+
+            <ServerHealthPanel token={session.token} />
 
             <TournamentManager calls={dashboard.calls} selectedId={dashboard.tournament.id} busy={Boolean(busy)}
               onSelect={(id) => { if (id !== dashboard.tournament.id) { setDashboard(null); setSelectedTournamentId(id) } }}
