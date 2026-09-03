@@ -13,6 +13,7 @@ interface Props {
 }
 
 interface HistoryPoint {
+  id: number
   sampledAt: string
   cpu: number
 }
@@ -48,7 +49,7 @@ export function ServerHealthPanel({ token, loadMetrics = api.serverMetrics }: Pr
       const next = await loadMetrics(token, signal)
       if (signal?.aborted) return
       setMetrics(next)
-      setHistory((current) => [...current, { sampledAt: next.sampledAt, cpu: next.cpu.percent }].slice(-24))
+      setHistory((current) => [...current, { id: (current.at(-1)?.id ?? 0) + 1, sampledAt: next.sampledAt, cpu: next.cpu.percent }].slice(-24))
       setError('')
     } catch (caught) {
       if (signal?.aborted) return
@@ -122,7 +123,7 @@ export function ServerHealthPanel({ token, loadMetrics = api.serverMetrics }: Pr
         <div className="server-health-footer">
           <div className="server-history-copy"><Server size={18} /><p><strong>{status?.detail}</strong><small>Activo hace {formatUptime(metrics.uptimeSeconds)} · bucle de eventos {metrics.eventLoopUtilizationPercent.toFixed(1)}%</small></p></div>
           <div className="server-history" aria-label={`Historial de CPU de ${history.length} lecturas reales`}>
-            {history.map((point) => <span key={point.sampledAt} style={{ height: `${Math.max(1, Math.min(100, point.cpu))}%` }} title={`${point.cpu.toFixed(1)}% CPU`} />)}
+            {history.map((point) => <span key={point.id} style={{ height: `${Math.max(1, Math.min(100, point.cpu))}%` }} title={`${point.cpu.toFixed(1)}% CPU`} />)}
           </div>
         </div>
       </>}
