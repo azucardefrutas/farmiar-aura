@@ -58,3 +58,15 @@ El **Riel de Aura** es una línea de energía dividida entre púrpura y cian que
 - Panel administrativo: `9b3e936110fa41bebe955d0e91c44f4e` — Expanded Light Clay Style.
 - Comportamiento móvil: `33904641ab4741a68e134e1129dbbdc6` — Mobile Redesign.
 - Se adoptan la tensión púrpura/cian, la densidad de datos, las superficies clay y el riel competitivo. Se conserva navegación simplificada, modo claro y flujo responsive propio.
+
+## Patrón de telemetría operativa
+
+- El apartado **Servidor** vive en la navegación administrativa y resume la salud de la API sin mezclarse con métricas del torneo ni con Presence.
+- Las lecturas siempre provienen del servidor real: CPU, memoria, solicitudes por minuto, peticiones activas, latencia p95, errores 5xx, tiempo activo, bucle de eventos y conexión con Supabase. Nunca se muestran valores simulados.
+- Actualización: cada 5 segundos únicamente mientras el panel está visible; detener o aplazar consultas cuando la pestaña está oculta y evitar peticiones superpuestas.
+- Densidad: cuadrícula compacta de 2 columnas en móvil y 3 desde tableta; números con `Sora`, cifras tabulares y textos auxiliares cortos.
+- Firma visual: borde superior y pulso púrpura para indicar lectura activa; riel púrpura solo en métricas porcentuales y microhistorial de CPU.
+- Semántica: verde para operación normal, ámbar desde el umbral preventivo y rojo solo cuando una dependencia crítica no responde.
+- Estados obligatorios: carga mediante esqueleto, última lectura válida conservada durante un error, hora exacta de muestreo y actualización manual accesible.
+- Seguridad: endpoint administrativo de solo lectura, sin credenciales ni detalles internos sensibles; limitar frecuencia por administrador.
+- Transparencia: aclarar que son métricas del proceso/contenedor de la API, no facturación ni telemetría total de Render. El conteo de colaboradores sigue usando Supabase Realtime Presence por separado.
