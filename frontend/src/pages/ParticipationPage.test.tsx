@@ -17,7 +17,7 @@ async function mount() {
   await act(async () => { root.render(<ParticipationPage />) })
   return node
 }
-const calls = [{ id: 'a', name: 'Primera edición', status: 'registration' as const, format: 'single_elimination' as const, isCurrent: true, registered: false, durationSeconds: 90, auraPerVote: 100 }, { id: 'b', name: 'Segunda edición', status: 'registration' as const, format: 'single_elimination' as const, isCurrent: false, registered: false, durationSeconds: 90, auraPerVote: 100 }]
+const calls = [{ id: 'a', name: 'Primera edición', status: 'registration' as const, format: 'single_elimination' as const, isCurrent: true, registered: false, durationSeconds: 90, auraPerVote: 100, maxParticipants: 8, registeredCount: 3, autoCloseWhenFull: true }, { id: 'b', name: 'Segunda edición', status: 'registration' as const, format: 'single_elimination' as const, isCurrent: false, registered: false, durationSeconds: 90, auraPerVote: 100, maxParticipants: 12, registeredCount: 4, autoCloseWhenFull: true }]
 it('does not report zero calls when the server request fails', async () => {
   vi.mocked(api.registrationCalls).mockRejectedValue(new Error('Servidor no disponible'))
   const node = await mount()
@@ -38,4 +38,11 @@ it('keeps the chosen form and its values when realtime closes that call', async 
   expect(node.querySelector('form h2')?.textContent).toBe('Segunda edición')
   expect(name.value).toBe('María')
   expect(node.querySelector<HTMLFieldSetElement>('form fieldset')!.disabled).toBe(true)
+})
+
+it('moves a full call out of the selectable list', async () => {
+  vi.mocked(api.registrationCalls).mockResolvedValue({ calls: [{ ...calls[0], registeredCount: 8 }] })
+  const node = await mount()
+  expect(node.textContent).toContain('Cupo lleno · 8/8')
+  expect(node.querySelector('input[name="convocatoria"]')).toBeNull()
 })

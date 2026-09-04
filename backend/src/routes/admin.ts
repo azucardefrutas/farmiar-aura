@@ -53,17 +53,35 @@ export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig, se
         supabase.from('participant_registrations').select('id,nombre,apellidos,edad,carrera,grupo,alias,instagram,foto_url,status,creado_en').eq('tournament_id', snapshot.tournament.id).order('creado_en', { ascending: false }),
         supabase.from('audit_logs').select('id,action,entity_type,entity_id,metadata,creado_en,administrator_id').order('creado_en', { ascending: false }).limit(30),
         supabase.from('administrators').select('usuario,rol,activo,creado_en').eq('activo', true).order('creado_en'),
-        supabase.from('tournaments').select('id,nombre,status,format,is_current,creado_en').order('creado_en', { ascending: false }).limit(50),
+        supabase.from('tournaments').select('id,nombre,status,format,is_current,max_participants,auto_close_when_full,creado_en').order('creado_en', { ascending: false }).limit(50),
       ])
       if (registrations.error) throw registrations.error
       if (logs.error) throw logs.error
       if (collaborators.error) throw collaborators.error
       if (calls.error) throw calls.error
+      const callIds = (calls.data ?? []).map((item) => item.id)
+      const callContestants = callIds.length
+        ? await supabase.from('contestants').select('tournament_id').eq('status', 'approved').in('tournament_id', callIds)
+        : { data: [], error: null }
+      if (callContestants.error) throw callContestants.error
+      const callCounts = new Map<string, number>()
+      for (const contestant of callContestants.data ?? []) {
+        callCounts.set(contestant.tournament_id, (callCounts.get(contestant.tournament_id) ?? 0) + 1)
+      }
       return res.json({
         ...snapshot,
         registrations: registrations.data,
         auditLogs: logs.data,
-        calls: (calls.data ?? []).map((item) => ({ id: item.id, name: item.nombre, status: item.status, format: item.format, isCurrent: item.is_current })),
+        calls: (calls.data ?? []).map((item) => ({
+          id: item.id,
+          name: item.nombre,
+          status: item.status,
+          format: item.format,
+          isCurrent: item.is_current,
+          maxParticipants: item.max_participants,
+          autoCloseWhenFull: item.auto_close_when_full,
+          registeredCount: callCounts.get(item.id) ?? 0,
+        })),
         collaborators: (collaborators.data ?? []).map((item) => ({
           username: item.usuario,
           role: item.rol,
@@ -100,11 +118,16 @@ export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig, se
   router.post('/tournaments', authenticated, async (req, res, next) => {
     try {
       const input = tournamentCallSchema.parse(req.body)
-      const { data, error } = await supabase.rpc('create_tournament_call', {
+      const { data, error } = await supabase.rpc('create_tournament_call_with_capacity', {
         p_name: input.name, p_format: input.format, p_duration: input.durationSeconds, p_aura: input.auraPerVote,
+        p_max_participants: input.maxParticipants, p_auto_close_when_full: input.autoCloseWhenFull,
       })
       if (error) return res.status(400).json({ error: error.message })
-      await audit(supabase, req.administrator!.id, 'tournament.created', 'tournament', data.id, { format: input.format })
+      await audit(supabase, req.administrator!.id, 'tournament.created', 'tournament', data.id, {
+        format: input.format,
+        maxParticipants: input.maxParticipants,
+        autoCloseWhenFull: input.autoCloseWhenFull,
+      })
       return res.status(201).json({ success: true, id: data.id })
     } catch (error) { next(error) }
   })
@@ -225,10 +248,12 @@ export function createAdminRouter(supabase: SupabaseAdmin, config: AppConfig, se
     try {
       const tournamentId = uuidSchema.parse(req.params.id)
       const input = tournamentSettingsSchema.parse(req.body)
-      const { data, error } = await supabase.rpc('update_tournament_settings', {
+      const { data, error } = await supabase.rpc('update_tournament_settings_with_capacity', {
         p_tournament_id: tournamentId,
         p_duration_seconds: input.durationSeconds,
         p_aura_per_vote: input.auraPerVote,
+        p_max_participants: input.maxParticipants,
+        p_auto_close_when_full: input.autoCloseWhenFull,
       })
       if (error) return res.status(400).json({ error: error.message })
       await audit(supabase, req.administrator!.id, 'tournament.settings.updated', 'tournament', tournamentId, input)

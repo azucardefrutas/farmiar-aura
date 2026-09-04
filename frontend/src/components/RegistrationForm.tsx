@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { CheckCircle2, ImagePlus, LoaderCircle } from 'lucide-react'
 import { api } from '../lib/api'
 
-export function RegistrationForm({ tournamentId, tournamentName, acceptingRegistrations, registered, onCreated }: { tournamentId: string; tournamentName: string; acceptingRegistrations: boolean; registered: boolean; onCreated?: (message: string) => void }) {
+export function RegistrationForm({ tournamentId, tournamentName, acceptingRegistrations, registered, registeredCount, maxParticipants, onCreated }: { tournamentId: string; tournamentName: string; acceptingRegistrations: boolean; registered: boolean; registeredCount: number; maxParticipants: number; onCreated?: (message: string) => void }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -29,7 +29,7 @@ export function RegistrationForm({ tournamentId, tournamentName, acceptingRegist
 
   return (
     <form className="registration-form" onSubmit={submit}>
-      <div><p className="eyebrow">Tu convocatoria</p><h2 className="mt-2 font-display text-xl font-bold">{tournamentName}</h2></div>
+      <div><p className="eyebrow">Tu convocatoria</p><h2 className="mt-2 font-display text-xl font-bold">{tournamentName}</h2><p className="mt-2 text-sm font-bold text-fuchsia-800">{registeredCount}/{maxParticipants} lugares ocupados</p></div>
       {!acceptingRegistrations && <p role="status" className="notice-error">Esta convocatoria cerró sus inscripciones. Tus datos no se enviarán a otra edición.</p>}
       {registered && !success && <p role="status" className="notice-success">Ya enviaste tu inscripción a esta convocatoria desde esta sesión.</p>}
       <fieldset disabled={submitting || !acceptingRegistrations || registered || Boolean(success)} className="grid min-w-0 gap-5 disabled:opacity-70">

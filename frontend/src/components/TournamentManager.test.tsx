@@ -10,8 +10,8 @@ const roots: ReturnType<typeof createRoot>[] = []
 afterEach(async () => { for (const root of roots.splice(0)) await act(() => root.unmount()) })
 
 const calls: TournamentCall[] = [
-  { id: 'draft', name: 'Convocatoria de prueba', status: 'draft', format: 'single_elimination', isCurrent: false },
-  { id: 'current', name: 'Convocatoria en vivo', status: 'registration', format: 'single_elimination', isCurrent: true },
+  { id: 'draft', name: 'Convocatoria de prueba', status: 'draft', format: 'single_elimination', isCurrent: false, maxParticipants: 8, autoCloseWhenFull: true, registeredCount: 0 },
+  { id: 'current', name: 'Convocatoria en vivo', status: 'registration', format: 'single_elimination', isCurrent: true, maxParticipants: 12, autoCloseWhenFull: true, registeredCount: 5 },
 ]
 
 async function mount(selectedId: string, canDelete = true) {
@@ -23,6 +23,7 @@ async function mount(selectedId: string, canDelete = true) {
     selectedId={selectedId}
     busy={false}
     canDelete={canDelete}
+    canOpenRegistrations={selectedId === 'draft'}
     onDelete={onDelete}
     onSelect={vi.fn()}
     onCreate={vi.fn(async () => undefined)}
@@ -52,4 +53,17 @@ it('blocks deletion of the call currently on stage', async () => {
 it('does not show the destructive action to collaborators', async () => {
   const { node } = await mount('draft', false)
   expect(node.textContent).not.toContain('Eliminar convocatoria')
+})
+
+it('shows the real capacity and sends it when creating a call', async () => {
+  const node = document.createElement('div')
+  const root = createRoot(node); roots.push(root)
+  const onCreate = vi.fn(async () => undefined)
+  await act(() => root.render(<TournamentManager calls={calls} selectedId="current" busy={false} canDelete canOpenRegistrations={false} onDelete={vi.fn()} onSelect={vi.fn()} onCreate={onCreate} onPublish={vi.fn()} onOpenRegistrations={vi.fn()} />))
+  expect(node.textContent).toContain('5/12')
+  await act(() => [...node.querySelectorAll('button')].find((item) => item.textContent?.includes('Nueva'))!.click())
+  const input = node.querySelector<HTMLInputElement>('input[name="name"]')!
+  input.value = 'Cupo de prueba'
+  await act(async () => { node.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await Promise.resolve() })
+  expect(onCreate).toHaveBeenCalledWith('Cupo de prueba', 'single_elimination', 8, true)
 })

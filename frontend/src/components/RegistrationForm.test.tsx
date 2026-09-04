@@ -8,7 +8,7 @@ vi.mock('../lib/api', () => ({ api: { register: vi.fn().mockResolvedValue({ mess
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 const roots: ReturnType<typeof createRoot>[] = []
 afterEach(async () => { for (const root of roots.splice(0)) await act(() => root.unmount()); vi.clearAllMocks() })
-const props = { tournamentId: 'selected-call', tournamentName: 'Edición elegida', acceptingRegistrations: true, registered: false }
+const props = { tournamentId: 'selected-call', tournamentName: 'Edición elegida', acceptingRegistrations: true, registered: false, registeredCount: 3, maxParticipants: 8 }
 async function mount() {
   const node = document.createElement('div'); const root = createRoot(node); roots.push(root)
   await act(() => root.render(<RegistrationForm {...props} />))

@@ -108,11 +108,11 @@ export function AdminPage() {
     finally { setBusy('') }
   }
 
-  async function createCall(name: string, format: TournamentFormat) {
+  async function createCall(name: string, format: TournamentFormat, maxParticipants: number, autoCloseWhenFull: boolean) {
     if (!session) return
     setBusy('create-call'); setError('')
     try {
-      const created = await api.createCall(session.token, name, format, 90, 100)
+      const created = await api.createCall(session.token, name, format, 90, 100, maxParticipants, autoCloseWhenFull)
       setDashboard(null); setSelectedTournamentId(created.id)
       setNotice('Convocatoria creada como borrador. Publícala cuando esté lista.')
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'No fue posible crear la convocatoria.') }
@@ -180,6 +180,7 @@ export function AdminPage() {
             <TournamentManager calls={dashboard.calls} selectedId={dashboard.tournament.id} busy={Boolean(busy)}
               onSelect={(id) => { if (id !== dashboard.tournament.id) { setDashboard(null); setSelectedTournamentId(id) } }}
               onCreate={createCall}
+              canOpenRegistrations={dashboard.tournament.status === 'draft' || (dashboard.tournament.status === 'ready' && dashboard.rounds.length === 0 && dashboard.contestants.length < dashboard.tournament.rules.maxParticipants)}
               onOpenRegistrations={() => void perform('open-registration', () => api.openRegistrations(session.token, dashboard.tournament.id), 'Inscripciones abiertas, sin cambiar el escenario actual.')}
               onPublish={() => { if (window.confirm('¿Llevar esta convocatoria al escenario de votación? El historial anterior se conserva.')) void perform('publish', () => api.publishCall(session.token, dashboard.tournament.id), 'Convocatoria publicada.') }}
               canDelete={session.user.role === 'admin'}
@@ -189,13 +190,15 @@ export function AdminPage() {
             {dashboard.activeMatch && ['live', 'paused'].includes(dashboard.activeMatch.status) && <ActiveMatchControl serverTime={dashboard.serverTime} match={dashboard.activeMatch} auraPerVote={dashboard.tournament.rules.auraPerVote} busy={busy} onAction={(action, tieWinnerId) => perform(`match-${action}`, () => api.matchAction(session.token, dashboard.activeMatch!.id, action, tieWinnerId), `Batalla ${action === 'start' ? 'iniciada' : action === 'pause' ? 'pausada' : action === 'resume' ? 'reanudada' : 'finalizada'}.`)} />}
 
             <TournamentRulesForm
-              key={`${dashboard.tournament.id}-${dashboard.tournament.rules.durationSeconds}-${dashboard.tournament.rules.auraPerVote}`}
+              key={`${dashboard.tournament.id}-${dashboard.tournament.rules.durationSeconds}-${dashboard.tournament.rules.auraPerVote}-${dashboard.tournament.rules.maxParticipants}-${dashboard.tournament.rules.autoCloseWhenFull}`}
               participantCount={dashboard.contestants.length}
               knockout={dashboard.tournament.format === 'single_elimination'}
               durationSeconds={dashboard.tournament.rules.durationSeconds}
               auraPerVote={dashboard.tournament.rules.auraPerVote}
+              maxParticipants={dashboard.tournament.rules.maxParticipants}
+              autoCloseWhenFull={dashboard.tournament.rules.autoCloseWhenFull}
               busy={busy === 'settings'}
-              onSubmit={(durationSeconds, auraPerVote) => perform('settings', () => api.updateTournamentSettings(session.token, dashboard.tournament.id, durationSeconds, auraPerVote), 'Reglas y duración actualizadas.')}
+              onSubmit={(durationSeconds, auraPerVote, maxParticipants, autoCloseWhenFull) => perform('settings', () => api.updateTournamentSettings(session.token, dashboard.tournament.id, durationSeconds, auraPerVote, maxParticipants, autoCloseWhenFull), 'Reglas, duración y cupo actualizados.')}
             />
 
             <section id="inscripciones" className="admin-section scroll-mt-6">
@@ -258,16 +261,21 @@ function ActiveMatchControl({ match, auraPerVote, busy, onAction, serverTime }: 
   return <section className="admin-section live-control"><div><p className="eyebrow">Batalla actual · {match.status}</p><h2 className="mt-2 font-display text-3xl font-extrabold text-primary">{match.contestantA?.name ?? 'Por definir'} <span className="text-tertiary">vs</span> {match.contestantB?.name ?? 'Por definir'}</h2><p className="mt-3 text-secondary">{match.votesA} – {match.votesB} votos · {(match.totalVotes * auraPerVote).toLocaleString('es-MX')} Aura</p></div><div className="mt-6 flex flex-wrap items-center gap-3"><div className="timer-panel mr-auto"><Countdown endsAt={match.endsAt} pausedSeconds={match.remainingSeconds} status={match.status} durationSeconds={match.durationSeconds} serverTime={serverTime} /></div>{match.status === 'scheduled' && <button className="primary-action" disabled={Boolean(busy)} onClick={() => onAction('start')}><Play size={17} /> Iniciar</button>}{match.status === 'live' && <button className="secondary-action" disabled={Boolean(busy)} onClick={() => onAction('pause')}><Pause size={17} /> Pausar</button>}{match.status === 'paused' && <button className="primary-action" disabled={Boolean(busy)} onClick={() => onAction('resume')}><Play size={17} /> Reanudar</button>}{['live', 'paused'].includes(match.status) && <button className="danger-action" disabled={Boolean(busy)} onClick={() => { if (tied) { const winner = window.prompt(`Empate. Escribe A para ${match.contestantA?.name} o B para ${match.contestantB?.name}`); onAction('finish', winner?.toUpperCase() === 'A' ? match.contestantA?.id : winner?.toUpperCase() === 'B' ? match.contestantB?.id : undefined) } else onAction('finish') }}><CircleStop size={17} /> Finalizar</button>}</div></section>
 }
 
-function TournamentRulesForm({ durationSeconds, auraPerVote, participantCount, knockout, busy, onSubmit }: { durationSeconds: number; auraPerVote: number; participantCount: number; knockout: boolean; busy: boolean; onSubmit: (durationSeconds: number, auraPerVote: number) => Promise<void> }) {
+function TournamentRulesForm({ durationSeconds, auraPerVote, maxParticipants, autoCloseWhenFull, participantCount, knockout, busy, onSubmit }: { durationSeconds: number; auraPerVote: number; maxParticipants: number; autoCloseWhenFull: boolean; participantCount: number; knockout: boolean; busy: boolean; onSubmit: (durationSeconds: number, auraPerVote: number, maxParticipants: number, autoCloseWhenFull: boolean) => Promise<void> }) {
   const [duration, setDuration] = useState(durationSeconds)
   const [aura, setAura] = useState(auraPerVote)
+  const [capacity, setCapacity] = useState(maxParticipants)
+  const [autoClose, setAutoClose] = useState(autoCloseWhenFull)
   const plan = tournamentPlan(participantCount, duration)
-  return <section id="reglas" className="admin-section scroll-mt-6"><div className="section-heading"><div><p className="eyebrow">Configuración activa</p><h2>Reglas y duración</h2></div></div>
-    <div className="rules-layout"><form className="rules-form" onSubmit={(event) => { event.preventDefault(); void onSubmit(duration, aura) }}>
+  return <section id="reglas" className="admin-section scroll-mt-6"><div className="section-heading"><div><p className="eyebrow">Configuración activa</p><h2>Reglas, duración y cupo</h2></div></div>
+    <div className="rules-layout"><form className="rules-form" onSubmit={(event) => { event.preventDefault(); void onSubmit(duration, aura, capacity, autoClose) }}>
       <label><span className="field-label">Tiempo por batalla</span><span className="field-with-unit"><Clock3 size={17} /><input className="field-input" name="durationSeconds" type="number" min={30} max={600} step={1} value={duration} onChange={(event) => setDuration(Number(event.target.value))} required /><small>segundos</small></span></label>
       <label><span className="field-label">Aura por voto</span><span className="field-with-unit"><Sparkles size={17} /><input className="field-input" name="auraPerVote" type="number" min={10} max={1000} value={aura} onChange={(event) => setAura(Number(event.target.value))} required /><small>Aura</small></span></label>
+      <label><span className="field-label">Cupo máximo</span><span className="field-with-unit"><Users size={17} /><input className="field-input" name="maxParticipants" type="number" min={Math.max(2, participantCount)} max={32} value={capacity} onChange={(event) => setCapacity(Number(event.target.value))} required /><small>personas</small></span></label>
+      <div className="grid grid-cols-4 gap-2">{[4, 8, 12, 16].map((amount) => <button key={amount} type="button" aria-pressed={capacity === amount} disabled={amount < participantCount} className={`min-h-10 rounded-xl border text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${capacity === amount ? 'border-fuchsia-500 bg-fuchsia-100 text-fuchsia-900' : 'border-white bg-white/60 text-secondary'}`} onClick={() => setCapacity(amount)}>{amount}</button>)}</div>
+      <label className="select-contestant"><input type="checkbox" checked={autoClose} onChange={(event) => setAutoClose(event.target.checked)} /><span>Cerrar automáticamente al llenarse<small>El último lugar se confirma y las solicitudes adicionales se bloquean.</small></span></label>
       <button className="secondary-action justify-center" disabled={busy}>{busy ? 'Guardando...' : 'Guardar reglas'}</button>
-    </form><div className="rules-summary"><p><Check size={16} /> Un voto por sesión anónima y batalla. Omitir no suma puntos.</p><p><Check size={16} /> Tiempo real desde el servidor. Los cambios de duración afectan solo batallas pendientes.</p><p><Check size={16} /> Gana quien recibe más votos. En empate, el administrador decide.</p><p><Check size={16} /> {knockout ? 'Quien pierde sale de la llave; las semifinales definen el duelo por el tercer lugar.' : 'Nadie queda fuera; los lugares se calculan al finalizar la convocatoria.'}</p></div></div>
+    </form><div className="rules-summary"><p><Check size={16} /> Cupo real: {participantCount}/{capacity}. La base de datos protege el último lugar aunque se inscriban varias personas a la vez.</p><p><Check size={16} /> Un voto por sesión anónima y batalla. Omitir no suma puntos.</p><p><Check size={16} /> Tiempo real desde el servidor. Los cambios de duración afectan solo batallas pendientes.</p><p><Check size={16} /> Gana quien recibe más votos. En empate, el administrador decide.</p><p><Check size={16} /> {knockout ? 'Quien pierde sale de la llave; las semifinales definen el duelo por el tercer lugar.' : 'Nadie queda fuera; los lugares se calculan al finalizar la convocatoria.'}</p></div></div>
     {knockout && participantCount >= 2 && <div className="mt-5 rounded-2xl bg-fuchsia-50/70 p-4">
       <div className="grid grid-cols-3 gap-3 text-center text-xs text-secondary"><p><strong className="block text-lg text-primary">{plan.matches}</strong>batallas reales</p><p><strong className="block text-lg text-primary">{plan.byes}</strong>pases directos</p><p><strong className="block text-lg text-primary">{durationLabel(plan.estimatedSeconds)}</strong>estimado total</p></div>
       <p className="mt-3 text-xs leading-5 text-secondary">Estimación con todos los inscritos, tercer lugar cuando aplica y 20 s entre encuentros. Las pausas, empates y revanchas pueden alargar el evento.</p>

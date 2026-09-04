@@ -25,7 +25,7 @@ function contestantView(row: Row): ContestantView {
 export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: string, tournamentId?: string) {
   let tournamentQuery = supabase
     .from('tournaments')
-    .select('id,nombre,slug,status,actualizado_en,match_duration_seconds,aura_per_vote,format,is_current')
+    .select('id,nombre,slug,status,actualizado_en,match_duration_seconds,aura_per_vote,max_participants,auto_close_when_full,format,is_current')
   tournamentQuery = tournamentId ? tournamentQuery.eq('id', tournamentId) : tournamentQuery.eq('is_current', true)
   const { data: tournament, error: tournamentError } = await tournamentQuery.single()
   if (tournamentError) throw tournamentError
@@ -119,7 +119,12 @@ export async function getTournamentSnapshot(supabase: SupabaseAdmin, voterId?: s
       updatedAt: tournament.actualizado_en,
       format: tournament.format,
       isCurrent: tournament.is_current,
-      rules: { durationSeconds: tournament.match_duration_seconds, auraPerVote },
+      rules: {
+        durationSeconds: tournament.match_duration_seconds,
+        auraPerVote,
+        maxParticipants: tournament.max_participants,
+        autoCloseWhenFull: tournament.auto_close_when_full,
+      },
     },
     contestants,
     rounds: (roundsResult.data ?? []).map((round) => ({

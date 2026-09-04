@@ -122,10 +122,18 @@ export function createPublicRouter(supabase: SupabaseAdmin) {
       if (error) {
         if (photoPath) await supabase.storage.from('participant-photos').remove([photoPath])
         if (error.code === '23505') return res.status(409).json({ error: 'Ya enviaste una solicitud para este torneo.' })
-        if (error.code === 'P0001') return res.status(409).json({ error: 'Esta convocatoria cerró sus inscripciones. Elige otra abierta.' })
+        if (error.code === 'P0001') return res.status(409).json({ error: error.message || 'Esta convocatoria cerró sus inscripciones. Elige otra abierta.' })
         throw error
       }
-      return res.status(201).json({ success: true, registrationId, result: data, message: 'Inscripción confirmada. Ya formas parte de Batallas de Aura.' })
+      const filled = data?.callStatus === 'ready'
+      return res.status(201).json({
+        success: true,
+        registrationId,
+        result: data,
+        message: filled
+          ? 'Inscripción confirmada. Ocupaste el último lugar y la convocatoria quedó completa.'
+          : 'Inscripción confirmada. Ya formas parte de Batallas de Aura.',
+      })
     } catch (error) { next(error) }
   })
 

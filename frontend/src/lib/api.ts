@@ -95,8 +95,8 @@ export const api = {
   serverMetrics(token: string, signal?: AbortSignal) {
     return request<ServerMetrics>('/admin/server-metrics', { headers: adminHeaders(token), signal })
   },
-  createCall(token: string, name: string, format: TournamentFormat, durationSeconds: number, auraPerVote: number) {
-    return request<{ success: true; id: string }>('/admin/tournaments', { method: 'POST', headers: adminHeaders(token), body: JSON.stringify({ name, format, durationSeconds, auraPerVote }) })
+  createCall(token: string, name: string, format: TournamentFormat, durationSeconds: number, auraPerVote: number, maxParticipants: number, autoCloseWhenFull: boolean) {
+    return request<{ success: true; id: string }>('/admin/tournaments', { method: 'POST', headers: adminHeaders(token), body: JSON.stringify({ name, format, durationSeconds, auraPerVote, maxParticipants, autoCloseWhenFull }) })
   },
   publishCall(token: string, id: string) {
     return request(`/admin/tournaments/${id}/publish`, { method: 'POST', headers: adminHeaders(token) })
@@ -128,9 +128,9 @@ export const api = {
   closeRegistrations(token: string, tournamentId: string) {
     return request(`/admin/tournaments/${tournamentId}/registrations/close`, { method: 'POST', headers: adminHeaders(token) })
   },
-  updateTournamentSettings(token: string, tournamentId: string, durationSeconds: number, auraPerVote: number) {
+  updateTournamentSettings(token: string, tournamentId: string, durationSeconds: number, auraPerVote: number, maxParticipants: number, autoCloseWhenFull: boolean) {
     return request<{ success: true; message: string }>(`/admin/tournaments/${tournamentId}/settings`, {
-      method: 'PATCH', headers: adminHeaders(token), body: JSON.stringify({ durationSeconds, auraPerVote }),
+      method: 'PATCH', headers: adminHeaders(token), body: JSON.stringify({ durationSeconds, auraPerVote, maxParticipants, autoCloseWhenFull }),
     })
   },
   matchAction(token: string, matchId: string, action: 'start' | 'pause' | 'resume' | 'finish', tieWinnerId?: string) {

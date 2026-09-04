@@ -43,6 +43,8 @@ export const bracketSchema = z.object({
 export const tournamentSettingsSchema = z.object({
   durationSeconds: z.coerce.number().int().min(30).max(600),
   auraPerVote: z.coerce.number().int().min(10).max(1000),
+  maxParticipants: z.coerce.number().int().min(2).max(32),
+  autoCloseWhenFull: z.boolean(),
 }).strict()
 
 export const tournamentCallSchema = tournamentSettingsSchema.extend({

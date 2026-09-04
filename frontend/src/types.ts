@@ -2,7 +2,16 @@ export type TournamentStatus = 'draft' | 'registration' | 'ready' | 'live' | 'fi
 export type MatchStatus = 'scheduled' | 'live' | 'paused' | 'finished' | 'cancelled'
 export type MatchType = 'knockout' | 'third_place' | 'bye' | 'exhibition'
 export type TournamentFormat = 'single_elimination' | 'free_battles'
-export interface TournamentCall { id: string; name: string; status: TournamentStatus; format: TournamentFormat; isCurrent: boolean }
+export interface TournamentCall {
+  id: string
+  name: string
+  status: TournamentStatus
+  format: TournamentFormat
+  isCurrent: boolean
+  maxParticipants: number
+  autoCloseWhenFull: boolean
+  registeredCount: number
+}
 export interface RegistrationCall extends TournamentCall { registered: boolean; durationSeconds: number; auraPerVote: number }
 export interface StageSlot { number: number; matchId: string; status: MatchStatus; label: string; contestantA: string; contestantB: string; ready: boolean }
 export interface StageSchedule { queue: StageSlot[]; currentMatchId: string | null; nextMatchId: string | null; completed: number; total: number; pendingVoteSeconds: number }
@@ -56,7 +65,7 @@ export interface TournamentSnapshot {
     updatedAt: string
     format: TournamentFormat
     isCurrent: boolean
-    rules: { durationSeconds: number; auraPerVote: number }
+    rules: { durationSeconds: number; auraPerVote: number; maxParticipants: number; autoCloseWhenFull: boolean }
   }
   contestants: Contestant[]
   rounds: Round[]

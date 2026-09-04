@@ -3,8 +3,8 @@ import { bracketSchema, freeMatchSchema, registrationSchema, tournamentCallSchem
 
 describe('request schemas', () => {
   it('validates tournament modes and rejects duplicate opponents', () => {
-    expect(tournamentCallSchema.parse({ name: 'Edición 2', format: 'free_battles', durationSeconds: 90, auraPerVote: 100 }).format).toBe('free_battles')
-    expect(() => tournamentCallSchema.parse({ name: 'Edición 2', format: 'anything', durationSeconds: 90, auraPerVote: 100 })).toThrow()
+    expect(tournamentCallSchema.parse({ name: 'Edición 2', format: 'free_battles', durationSeconds: 90, auraPerVote: 100, maxParticipants: 8, autoCloseWhenFull: true }).format).toBe('free_battles')
+    expect(() => tournamentCallSchema.parse({ name: 'Edición 2', format: 'anything', durationSeconds: 90, auraPerVote: 100, maxParticipants: 8, autoCloseWhenFull: true })).toThrow()
     const id = '7d98c0d2-655d-47ca-b499-4292ea6bf1a8'
     expect(() => freeMatchSchema.parse({ contestantAId: id, contestantBId: id, durationSeconds: 90 })).toThrow()
   })
@@ -36,7 +36,8 @@ describe('request schemas', () => {
     const first = '7d98c0d2-655d-47ca-b499-4292ea6bf1a8'
     const second = '9cb08c0c-65e3-47bc-a31b-6353959d14c4'
     expect(bracketSchema.parse({ contestantIds: [first, second] }).contestantIds).toHaveLength(2)
-    expect(tournamentSettingsSchema.parse({ durationSeconds: 90, auraPerVote: 100 })).toEqual({ durationSeconds: 90, auraPerVote: 100 })
-    expect(() => tournamentSettingsSchema.parse({ durationSeconds: 10, auraPerVote: 100 })).toThrow()
+    expect(tournamentSettingsSchema.parse({ durationSeconds: 90, auraPerVote: 100, maxParticipants: 12, autoCloseWhenFull: true })).toEqual({ durationSeconds: 90, auraPerVote: 100, maxParticipants: 12, autoCloseWhenFull: true })
+    expect(() => tournamentSettingsSchema.parse({ durationSeconds: 10, auraPerVote: 100, maxParticipants: 12, autoCloseWhenFull: true })).toThrow()
+    expect(() => tournamentSettingsSchema.parse({ durationSeconds: 90, auraPerVote: 100, maxParticipants: 33, autoCloseWhenFull: true })).toThrow()
   })
 })
